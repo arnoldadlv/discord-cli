@@ -191,6 +191,15 @@ discord export search policy --all --author someone --after 2026-01-01
 discord export search MFA --guild dm --json
 ```
 
+A search hit gives you an id. Read that message back, with the conversation around it:
+
+```sh
+discord message read 1542961568172740660
+discord message read 1542961568172740660 --context 5
+```
+
+The id is looked up in the search index first, so a message that is already in an export is read from disk without asking Discord. If no export holds it, name the channel with `--channel` and it is fetched instead.
+
 Look after the search index and the lookup cache:
 
 ```sh
@@ -258,7 +267,7 @@ The guild, channel, and DM lists are kept in the lookup cache for 24 hours so na
 | 1 | Unexpected error |
 | 2 | Usage error (bad flag, missing argument, no guild and no default guild) |
 | 3 | Authentication failed (no token, rejected token, bot token) |
-| 4 | Guild, channel, or DM not found |
+| 4 | Guild, channel, DM, or message not found |
 | 5 | No exports found |
 | 6 | Rate limit exhausted |
 
