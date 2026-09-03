@@ -68,11 +68,22 @@ func TestDMReadByUsername(t *testing.T) {
 			ID, Name string
 			Type     int
 		} `json:"channel"`
-		Messages []struct{ ID string } `json:"messages"`
+		Messages []compactMessageJSON `json:"messages"`
 	}
-	r.Run("dm", "read", "Kyle B", "--json").JSON(t, &j)
+	res = r.Run("dm", "read", "Kyle B", "--json")
+	res.JSON(t, &j)
 	if j.Channel.ID != "6001" || j.Channel.Name != "kyle" || j.Channel.Type != 1 || len(j.Messages) != 25 {
 		t.Errorf("%+v", j)
+	}
+	// dm read projects onto the same compact shape as channel read: the
+	// author is id+name only, never Discord's full user object.
+	if j.Messages[0].Author.ID == "" || j.Messages[0].Author.Name == "" {
+		t.Errorf("author not projected: %+v", j.Messages[0].Author)
+	}
+	for _, dropped := range []string{"avatar_decoration_data", "display_name_styles", "referenced_message", "channel_id", "mention_everyone"} {
+		if strings.Contains(res.Stdout, dropped) {
+			t.Errorf("dm read leaked raw field %q", dropped)
+		}
 	}
 }
 

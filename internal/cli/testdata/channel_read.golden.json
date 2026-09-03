@@ -10,149 +10,78 @@
   },
   "messages": [
     {
+      "id": "5000001",
+      "timestamp": "2026-08-01T10:01:00.000000+00:00",
+      "edited": false,
+      "author": {
+        "id": "9002",
+        "name": "Kyle B"
+      },
+      "content": "message 1 about topic policy",
       "attachments": [
         {
           "filename": "report.pdf",
-          "id": "75000001",
-          "size": 1234,
-          "url": "https://cdn.example.test/report.pdf"
+          "url": "https://cdn.example.test/report.pdf",
+          "size": 1234
         }
-      ],
-      "author": {
-        "discriminator": "0",
-        "global_name": "Kyle B",
-        "id": "9002",
-        "username": "kyle"
-      },
-      "channel_id": "2001",
-      "components": [],
-      "content": "message 1 about topic policy",
-      "edited_timestamp": null,
-      "embeds": [],
-      "flags": 0,
-      "id": "5000001",
-      "mention_everyone": false,
-      "mention_roles": [],
-      "mentions": [],
-      "pinned": false,
-      "timestamp": "2026-08-01T10:01:00.000000+00:00",
-      "tts": false,
-      "type": 0
+      ]
     },
     {
-      "attachments": [],
+      "id": "5000002",
+      "timestamp": "2026-08-01T10:02:00.000000+00:00",
+      "edited": false,
       "author": {
-        "discriminator": "0",
-        "global_name": null,
         "id": "9003",
-        "username": "newsbot"
+        "name": "newsbot"
       },
-      "channel_id": "2001",
-      "components": [],
       "content": "",
-      "edited_timestamp": null,
       "embeds": [
         {
-          "description": "Three \u003cb\u003ethings\u003c/b\u003e happened this week.",
           "title": "Weekly digest",
-          "type": "rich",
-          "url": "https://news.example.test/digest"
+          "url": "https://news.example.test/digest",
+          "description": "Three things happened this week."
         }
-      ],
-      "flags": 0,
-      "id": "5000002",
-      "mention_everyone": false,
-      "mention_roles": [],
-      "mentions": [],
-      "pinned": false,
-      "timestamp": "2026-08-01T10:02:00.000000+00:00",
-      "tts": false,
-      "type": 0
+      ]
     },
     {
-      "attachments": [],
-      "author": {
-        "discriminator": "0",
-        "global_name": "Ana",
-        "id": "9001",
-        "username": "ana"
-      },
-      "channel_id": "2001",
-      "components": [],
-      "content": "message 3 about topic access control",
-      "edited_timestamp": null,
-      "embeds": [],
-      "flags": 0,
       "id": "5000003",
-      "mention_everyone": false,
-      "mention_roles": [],
-      "mentions": [],
-      "pinned": false,
+      "timestamp": "2026-08-01T10:03:00.000000+00:00",
+      "edited": false,
+      "author": {
+        "id": "9001",
+        "name": "Ana"
+      },
+      "content": "message 3 about topic access control",
       "reactions": [
         {
-          "count": 3,
-          "emoji": {
-            "id": null,
-            "name": "👍"
-          }
+          "emoji": "👍",
+          "count": 3
         },
         {
-          "count": 1,
-          "emoji": {
-            "id": null,
-            "name": "🎉"
-          }
+          "emoji": "🎉",
+          "count": 1
         }
-      ],
-      "timestamp": "2026-08-01T10:03:00.000000+00:00",
-      "tts": false,
-      "type": 0
+      ]
     },
     {
-      "attachments": [],
-      "author": {
-        "discriminator": "0",
-        "global_name": "Kyle B",
-        "id": "9002",
-        "username": "kyle"
-      },
-      "channel_id": "2001",
-      "components": [],
-      "content": "message 4 about topic policy",
-      "edited_timestamp": null,
-      "embeds": [],
-      "flags": 0,
       "id": "5000004",
-      "mention_everyone": false,
-      "mention_roles": [],
-      "mentions": [],
-      "pinned": false,
       "timestamp": "2026-08-01T10:04:00.000000+00:00",
-      "tts": false,
-      "type": 0
+      "edited": false,
+      "author": {
+        "id": "9002",
+        "name": "Kyle B"
+      },
+      "content": "message 4 about topic policy"
     },
     {
-      "attachments": [],
-      "author": {
-        "discriminator": "0",
-        "global_name": null,
-        "id": "9003",
-        "username": "newsbot"
-      },
-      "channel_id": "2001",
-      "components": [],
-      "content": "message 5 about topic scoping",
-      "edited_timestamp": null,
-      "embeds": [],
-      "flags": 0,
       "id": "5000005",
-      "mention_everyone": false,
-      "mention_roles": [],
-      "mentions": [],
-      "pinned": false,
       "timestamp": "2026-08-01T10:05:00.000000+00:00",
-      "tts": false,
-      "type": 0
+      "edited": false,
+      "author": {
+        "id": "9003",
+        "name": "newsbot"
+      },
+      "content": "message 5 about topic scoping"
     }
   ]
 }
