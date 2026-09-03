@@ -52,7 +52,7 @@ func (a *app) reportUnreadable(list []search.Unreadable) {
 	}
 	a.notice("Skipped %s the index cannot parse (searches skip them too):", plural(len(list), "unreadable export"))
 	for _, u := range list {
-		a.notice("  %s: %s", a.shortPath(u.Path), u.Err)
+		a.notice("  %s: %s", a.shortPath(u.Path), strings.TrimPrefix(u.Err, u.Path+": "))
 	}
 }
 
