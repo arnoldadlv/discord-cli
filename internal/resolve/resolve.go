@@ -68,9 +68,9 @@ func Normalize(name string) string {
 	return s
 }
 
-// key is the normalised form used for matching: Normalize with the hyphens
+// Key is the normalised form used for matching: Normalize with the hyphens
 // that a stripped emoji prefix or suffix leaves behind trimmed away.
-func key(name string) string {
+func Key(name string) string {
 	return strings.Trim(Normalize(name), "-")
 }
 
@@ -90,9 +90,9 @@ func Match(kind, input string, candidates []Candidate) (Candidate, error) {
 	}
 
 	lower := strings.ToLower(input)
-	norm := key(input)
+	norm := Key(input)
 	exact := func(n string) bool { return strings.ToLower(n) == lower }
-	normalised := func(n string) bool { return norm != "" && key(n) == norm }
+	normalised := func(n string) bool { return norm != "" && Key(n) == norm }
 	steps := []func(c Candidate) bool{
 		func(c Candidate) bool { return anyMatch(c.primary(), exact) },
 		func(c Candidate) bool { return anyMatch(c.Aliases, exact) },
@@ -137,14 +137,14 @@ func (c Candidate) names() []string {
 // substring, case-insensitively, on the raw or normalised name.
 func Suggest(input string, candidates []Candidate, max int) []string {
 	lower := strings.ToLower(strings.TrimSpace(input))
-	norm := key(input)
+	norm := Key(input)
 	seen := map[string]bool{}
 	var out []string
 	for _, c := range candidates {
 		for _, n := range c.names() {
 			hit := strings.Contains(strings.ToLower(n), lower)
 			if !hit && norm != "" {
-				hit = strings.Contains(key(n), norm)
+				hit = strings.Contains(Key(n), norm)
 			}
 			if hit && !seen[c.Name] {
 				seen[c.Name] = true

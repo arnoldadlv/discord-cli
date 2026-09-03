@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
 	"github.com/arnoldadlv/discord-cli/internal/resolve"
+	"github.com/arnoldadlv/discord-cli/internal/search"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
 
@@ -117,7 +119,7 @@ func (a *app) dmCommands() []*cobra.Command {
 						parts = append(parts, p.Username)
 					}
 				}
-				rows = append(rows, []string{j.Name, j.Type, joinStrings(parts, ", "), d.ID})
+				rows = append(rows, []string{j.Name, j.Type, strings.Join(parts, ", "), d.ID})
 			}
 			term.Table(a.stdout(), a.out, []term.Column{{Header: "NAME"}, {Header: "TYPE"}, {Header: "PARTICIPANTS"}, {Header: "ID"}}, rows)
 			return nil
@@ -179,17 +181,6 @@ exports. Runs are incremental, found by the DM's id; --full refetches.`,
 	}
 	exp.Flags().BoolVar(&exFull, "full", false, "ignore the export meta and refetch every message")
 	return []*cobra.Command{list, read, search, exp}
-}
-
-func joinStrings(parts []string, sep string) string {
-	out := ""
-	for i, p := range parts {
-		if i > 0 {
-			out += sep
-		}
-		out += p
-	}
-	return out
 }
 
 // dmMessagesJSON is the JSON for DM reads: the same shape as channel reads
@@ -273,16 +264,12 @@ func (a *app) dmSearch(cmd *cobra.Command, input, query, afterFlag, beforeFlag s
 	if pages > 1 {
 		a.notice("Searched all %d messages of this DM; Discord has no search for DMs. For repeated searches run 'discord dm export %q' once, then 'discord export search'.", len(history), d.DisplayName())
 	}
-	terms := queryTerms(query)
+	q := search.Query{Terms: search.Terms(query), After: after, Before: before}
 	var matches []discord.Message
 	for _, m := range history {
-		if !matchesTerms(m.Content, terms) {
-			continue
+		if q.Matches(search.FromMessage(m.Content, m.Author.Username, m.Timestamp)) {
+			matches = append(matches, m)
 		}
-		if !inRange(m.Time(), after, before) {
-			continue
-		}
-		matches = append(matches, m)
 	}
 	sort.SliceStable(matches, func(i, j int) bool { return matches[i].Time().After(matches[j].Time()) })
 	shown := matches

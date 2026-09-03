@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -41,13 +40,5 @@ func SaveToken(p Paths, token string) error {
 	if err := os.MkdirAll(p.ConfigDir, 0o700); err != nil {
 		return err
 	}
-	path := p.TokenFile()
-	tmp := filepath.Join(p.ConfigDir, ".token.tmp")
-	if err := os.WriteFile(tmp, []byte(token+"\n"), 0o600); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmp, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return WriteFileAtomic(p.TokenFile(), []byte(token+"\n"), 0o600)
 }

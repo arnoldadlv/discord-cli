@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/arnoldadlv/discord-cli/internal/cli"
+	"github.com/arnoldadlv/discord-cli/internal/discord"
 )
 
 func TestLiveSmoke(t *testing.T) {
@@ -47,7 +47,7 @@ func TestLiveSmoke(t *testing.T) {
 			Stdout:  &stdout,
 			Stderr:  &stderr,
 			Getenv:  getenv,
-			Sleep:   time.Sleep,
+			Sleep:   discord.ContextSleep,
 			Version: "smoke",
 		})
 		if code != 0 {

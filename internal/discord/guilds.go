@@ -2,6 +2,7 @@ package discord
 
 import (
 	"context"
+	"errors"
 	"net/url"
 )
 
@@ -85,4 +86,20 @@ func (c *Client) Channels(ctx context.Context, guildID string) ([]Channel, error
 		return nil, err
 	}
 	return out, nil
+}
+
+// Channel fetches one channel or thread by id.
+func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
+	var out Channel
+	if err := c.Get(ctx, "/channels/"+id, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// IsNotFound reports whether an error is a 403 or 404 from Discord: the
+// account cannot see the resource, or it does not exist.
+func IsNotFound(err error) bool {
+	var se *StatusError
+	return errors.As(err, &se) && (se.Status == 404 || se.Status == 403)
 }

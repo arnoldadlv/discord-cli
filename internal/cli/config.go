@@ -54,6 +54,9 @@ func (a *app) configSet(cmd *cobra.Command, key, value string) error {
 			return err
 		}
 		a.notice("default-guild set to %q (%s, %s)", value, g.Name, g.ID)
+		if a.flags.JSON {
+			return term.WriteJSON(a.stdout(), map[string]any{"default-guild": value, "guild": namedJSON{ID: g.ID, Name: g.Name}})
+		}
 		return nil
 	}
 	return UsageError("unknown configuration key %q", key).WithHint("Keys: %s", strings.Join(store.ConfigKeys, ", "))

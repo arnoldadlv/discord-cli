@@ -170,8 +170,8 @@ func TestCacheStatusRebuildClear(t *testing.T) {
 }
 
 func TestIndexedSearchIsFast(t *testing.T) {
-	if testing.Short() {
-		t.Skip("large fixture")
+	if testing.Short() || raceEnabled {
+		t.Skip("large fixture; timing is only meaningful without -short and without the race detector")
 	}
 	r := channelRunner(t)
 	dir := filepath.Join(r.Home.ExportsDir(), "big-guild")

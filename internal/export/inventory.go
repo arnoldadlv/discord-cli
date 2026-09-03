@@ -8,16 +8,17 @@ import (
 	"github.com/arnoldadlv/discord-cli/internal/resolve"
 )
 
-// Location labels for the three read locations, in precedence order.
+// Location labels for the three read locations, in precedence order: the
+// XDG data directory, the Node CLI's directory, and DiscordChatExporter's.
 const (
-	LocationXDG    = "xdg"
-	LocationLegacy = "legacy"
-	LocationDCE    = "dce"
+	LocationXDG          = "xdg"
+	LocationNode         = "node"
+	LocationChatExporter = "chatexporter"
 )
 
 // LocationLabels names the read locations in the order Paths.ReadLocations
 // returns them.
-var LocationLabels = []string{LocationXDG, LocationLegacy, LocationDCE}
+var LocationLabels = []string{LocationXDG, LocationNode, LocationChatExporter}
 
 // Item is one export on disk with everything the inventory shows.
 type Item struct {
@@ -82,8 +83,8 @@ func (it Item) MatchesGuild(input string) bool {
 		return it.Guild.ID == in
 	}
 	lower := strings.ToLower(in)
-	norm := strings.Trim(resolve.Normalize(in), "-")
-	if strings.ToLower(it.Guild.Name) == lower || strings.Trim(resolve.Normalize(it.Guild.Name), "-") == norm {
+	norm := resolve.Key(in)
+	if strings.ToLower(it.Guild.Name) == lower || resolve.Key(it.Guild.Name) == norm {
 		return true
 	}
 	dir := filepath.Base(filepath.Dir(it.Path))
@@ -91,5 +92,5 @@ func (it Item) MatchesGuild(input string) bool {
 		// threads/<parent>/<thread>.json: the guild dir is two levels up.
 		dir = filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(it.Path))))
 	}
-	return strings.ToLower(dir) == lower || strings.Trim(resolve.Normalize(dir), "-") == norm
+	return strings.ToLower(dir) == lower || resolve.Key(dir) == norm
 }
