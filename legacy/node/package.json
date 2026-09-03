@@ -1,0 +1,28 @@
+{
+  "name": "@poamslayer/discord-cli",
+  "version": "1.0.0",
+  "description": "Zero-dependency Discord CLI for searching, exporting, and browsing servers, channels, and DMs",
+  "type": "module",
+  "bin": {
+    "discord": "./bin/discord.js"
+  },
+  "files": [
+    "bin/",
+    "src/"
+  ],
+  "keywords": [
+    "discord",
+    "cli",
+    "export",
+    "search",
+    "messages"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arnoldadlv/discord-cli"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
