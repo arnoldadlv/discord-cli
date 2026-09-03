@@ -252,3 +252,11 @@ func sortMessages(msgs []json.RawMessage) {
 		msgs[i] = ks[i].m
 	}
 }
+
+// DM exports carry a guild the tool defines, so every export has one.
+const (
+	DMGuildID   = "@me"
+	DMGuildName = "DM"
+	// DMDirName is the directory beside the guild directories for DM exports.
+	DMDirName = "dm"
+)
