@@ -1,5 +1,12 @@
 package clitest
 
+import (
+	"fmt"
+	"net/http"
+	"sync"
+	"time"
+)
+
 // Hand-written fixtures with invented names. No real guilds, channels,
 // people, or messages ever appear here.
 
@@ -54,4 +61,137 @@ func Threads(parentID string) (active, archived []map[string]any) {
 		}
 	}
 	return active, archived
+}
+
+// Message builds one raw API message object with invented content. Ids and
+// timestamps rise with n so paging tests can reason about order.
+func Message(channelID string, n int) map[string]any {
+	ts := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC).Add(time.Duration(n) * time.Minute)
+	authors := []map[string]any{
+		{"id": "9001", "username": "ana", "global_name": "Ana", "discriminator": "0"},
+		{"id": "9002", "username": "kyle", "global_name": "Kyle B", "discriminator": "0"},
+		{"id": "9003", "username": "newsbot", "global_name": nil, "discriminator": "0"},
+	}
+	m := map[string]any{
+		"id":               MessageID(n),
+		"type":             0,
+		"channel_id":       channelID,
+		"author":           authors[n%3],
+		"content":          fmt.Sprintf("message %d about topic %s", n, []string{"access control", "policy", "scoping"}[n%3]),
+		"timestamp":        ts.Format("2006-01-02T15:04:05.000000+00:00"),
+		"edited_timestamp": nil,
+		"attachments":      []any{},
+		"embeds":           []any{},
+		"mentions":         []any{},
+		"mention_roles":    []any{},
+		"pinned":           false,
+		"mention_everyone": false,
+		"tts":              false,
+		"flags":            0,
+		"components":       []any{},
+	}
+	switch n % 5 {
+	case 1:
+		m["attachments"] = []map[string]any{{"id": "7" + MessageID(n), "filename": "report.pdf", "size": 1234, "url": "https://cdn.example.test/report.pdf"}}
+	case 2:
+		m["content"] = ""
+		m["embeds"] = []map[string]any{{"type": "rich", "title": "Weekly digest", "description": "Three <b>things</b> happened this week.", "url": "https://news.example.test/digest"}}
+	case 3:
+		m["reactions"] = []map[string]any{{"count": 3, "emoji": map[string]any{"id": nil, "name": "👍"}}, {"count": 1, "emoji": map[string]any{"id": nil, "name": "🎉"}}}
+	}
+	return m
+}
+
+// MessageID is the id of the nth fixture message.
+func MessageID(n int) string { return fmt.Sprintf("%d", 5000000+n) }
+
+// Messages builds n messages for a channel, oldest first.
+func Messages(channelID string, n int) []map[string]any {
+	out := make([]map[string]any, n)
+	for i := range out {
+		out[i] = Message(channelID, i+1)
+	}
+	return out
+}
+
+// ServeMessages registers the channel messages endpoint with Discord's
+// semantics: newest first, limit, and before/after as exclusive id bounds.
+// The store is returned so a test can append messages between runs.
+func ServeMessages(f *FakeDiscord, channelID string, msgs []map[string]any) *MessageStore {
+	s := &MessageStore{msgs: msgs}
+	f.Handle("/channels/"+channelID+"/messages", func(req *http.Request) Response {
+		q := req.URL.Query()
+		limit := 50
+		if l := q.Get("limit"); l != "" {
+			limit = atoi(l)
+		}
+		before, after := q.Get("before"), q.Get("after")
+		if before != "" && after != "" {
+			return Response{Status: 400, Body: `{"message":"before and after together","code":50035}`}
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		var pick []map[string]any
+		if after != "" {
+			// Oldest first above the bound, then take the oldest limit and return newest first.
+			for _, m := range s.msgs {
+				if atoi(m["id"].(string)) > atoi(after) {
+					pick = append(pick, m)
+				}
+			}
+			if len(pick) > limit {
+				pick = pick[:limit]
+			}
+		} else {
+			for i := len(s.msgs) - 1; i >= 0; i-- {
+				m := s.msgs[i]
+				if before != "" && atoi(m["id"].(string)) >= atoi(before) {
+					continue
+				}
+				pick = append(pick, m)
+				if len(pick) == limit {
+					break
+				}
+			}
+			return Response{Status: 200, Body: nonNil(pick)}
+		}
+		// reverse to newest first
+		out := make([]map[string]any, len(pick))
+		for i, m := range pick {
+			out[len(pick)-1-i] = m
+		}
+		return Response{Status: 200, Body: nonNil(out)}
+	})
+	return s
+}
+
+// MessageStore holds a channel's messages for the fake server.
+type MessageStore struct {
+	mu   sync.Mutex
+	msgs []map[string]any
+}
+
+// Append adds messages (oldest first) after the existing ones.
+func (s *MessageStore) Append(msgs ...map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.msgs = append(s.msgs, msgs...)
+}
+
+func nonNil(m []map[string]any) []map[string]any {
+	if m == nil {
+		return []map[string]any{}
+	}
+	return m
+}
+
+func atoi(s string) int {
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
 }

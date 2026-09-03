@@ -141,7 +141,69 @@ func (a *app) channelCommands() []*cobra.Command {
 	}
 	addGuildFlag(list, &listGuild)
 	list.Flags().BoolVar(&listThreads, "threads", false, "include active and archived threads under their parent channels")
-	return []*cobra.Command{list}
+
+	var readGuild string
+	var readThreads bool
+	var readLimit int
+	read := &cobra.Command{
+		Use:   "read <channel>",
+		Short: "Print the most recent messages of a channel, oldest first",
+		Long: `Print the most recent messages of a channel, oldest first, with
+attachments, embeds, and reactions. Name the channel by name or id; the
+emoji prefix may be left off (news finds 📰news). With --threads a thread
+name is accepted too.`,
+		Example: `  discord channel read general
+  discord channel read news --limit 5
+  discord channel read "welcome thread" --threads --json`,
+		Args: exactOnePositional("channel"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.channelRead(cmd, readGuild, args[0], readThreads, readLimit)
+		},
+	}
+	addGuildFlag(read, &readGuild)
+	read.Flags().BoolVar(&readThreads, "threads", false, "allow a thread name or id as the channel")
+	read.Flags().IntVarP(&readLimit, "limit", "n", 25, "number of messages to show")
+	return []*cobra.Command{list, read}
+}
+
+func (a *app) channelRead(cmd *cobra.Command, guildFlag, channelInput string, withThreads bool, limit int) error {
+	ctx := cmd.Context()
+	if limit <= 0 {
+		return UsageError("--limit must be at least 1")
+	}
+	input, err := a.guildArg(guildFlag)
+	if err != nil {
+		return err
+	}
+	g, err := a.resolveGuild(ctx, input)
+	if err != nil {
+		return err
+	}
+	ch, err := a.resolveChannel(ctx, g.ID, channelInput, withThreads)
+	if err != nil {
+		return err
+	}
+	c, _, err := a.client()
+	if err != nil {
+		return err
+	}
+	ms, err := c.Recent(ctx, ch.ID, limit)
+	if err != nil {
+		return a.apiError(err)
+	}
+	if a.flags.JSON {
+		return term.WriteJSON(a.stdout(), messagesJSON{
+			Guild:    namedJSON{ID: g.ID, Name: g.Name},
+			Channel:  namedJSON{ID: ch.ID, Name: ch.Name, Type: intPtr(ch.Type)},
+			Messages: rawMessages(ms),
+		})
+	}
+	if len(ms) == 0 {
+		fmt.Fprintf(a.stdout(), "No messages in #%s.\n", ch.Name)
+		return nil
+	}
+	a.messageWriter().writeAll(ms)
+	return nil
 }
 
 func (a *app) channelList(cmd *cobra.Command, guildFlag string, withThreads bool) error {
