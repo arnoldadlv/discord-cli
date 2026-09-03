@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -120,16 +121,23 @@ func (m Message) Time() time.Time {
 // MessagePage is the largest page the messages endpoint serves.
 const MessagePage = 100
 
-// Messages fetches one page of a channel's messages, newest first. Exactly
-// one of before and after may be set; the API rejects both together.
-func (c *Client) Messages(ctx context.Context, channelID string, limit int, before, after string) ([]Message, error) {
+// Messages fetches one page of a channel's messages, newest first. At most
+// one of before, after, and around may be set; the API rejects any two of
+// them together. With around the page is centred on that message.
+func (c *Client) Messages(ctx context.Context, channelID string, limit int, before, after, around string) ([]Message, error) {
+	if around != "" && (before != "" || after != "") {
+		return nil, fmt.Errorf("messages: around cannot be combined with before or after")
+	}
 	if limit <= 0 || limit > MessagePage {
 		limit = MessagePage
 	}
 	q := url.Values{"limit": {strconv.Itoa(limit)}}
-	if before != "" {
+	switch {
+	case around != "":
+		q.Set("around", around)
+	case before != "":
 		q.Set("before", before)
-	} else if after != "" {
+	case after != "":
 		q.Set("after", after)
 	}
 	var out []Message
@@ -146,7 +154,7 @@ func (c *Client) Recent(ctx context.Context, channelID string, n int) ([]Message
 	before := ""
 	for len(all) < n {
 		want := n - len(all)
-		page, err := c.Messages(ctx, channelID, want, before, "")
+		page, err := c.Messages(ctx, channelID, want, before, "", "")
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +182,7 @@ func (c *Client) History(ctx context.Context, channelID string, after string, on
 	var all []Message
 	before := ""
 	for {
-		page, err := c.Messages(ctx, channelID, MessagePage, before, after)
+		page, err := c.Messages(ctx, channelID, MessagePage, before, after, "")
 		if err != nil {
 			return nil, err
 		}

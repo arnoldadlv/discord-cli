@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS messages (
 	content TEXT
 );
 CREATE INDEX IF NOT EXISTS messages_file ON messages(file);
+CREATE INDEX IF NOT EXISTS messages_message_id ON messages(message_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 	content, content='messages', content_rowid='id', tokenize='trigram'
 );
