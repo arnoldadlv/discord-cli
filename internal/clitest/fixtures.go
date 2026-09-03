@@ -248,3 +248,41 @@ func LegacyExport(guildID, guildName, channelID, channelName string, n int) map[
 		"messageCount": n,
 	}
 }
+
+// ServeSearch registers the guild message search endpoint over a pool of
+// n hit messages spread across channels, newest first, honouring limit and
+// offset and echoing total_results. Messages come back as array of arrays.
+func ServeSearch(f *FakeDiscord, guildID string, n int) {
+	channels := []string{"2001", "2002", "2003"}
+	pool := make([]map[string]any, n)
+	for i := range pool {
+		m := Message(channels[i%3], n-i) // newest first
+		m["hit"] = true
+		delete(m, "reactions")
+		pool[i] = m
+	}
+	f.Handle("/guilds/"+guildID+"/messages/search", func(req *http.Request) Response {
+		q := req.URL.Query()
+		limit := 25
+		if l := q.Get("limit"); l != "" {
+			limit = atoi(l)
+		}
+		if limit > 25 {
+			limit = 25
+		}
+		offset := atoi(q.Get("offset"))
+		var page []any
+		for i := offset; i < len(pool) && len(page) < limit; i++ {
+			page = append(page, []any{pool[i]})
+		}
+		if page == nil {
+			page = []any{}
+		}
+		return Response{Status: 200, Body: map[string]any{
+			"analytics_id":                "x",
+			"doing_deep_historical_index": false,
+			"total_results":               n,
+			"messages":                    page,
+		}}
+	})
+}

@@ -141,7 +141,7 @@ Report problems at ` + RepoURL,
 	root.SetErr(a.env.Stderr)
 	root.SetVersionTemplate(`{{.Version}}` + "\n")
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return UsageError("%s", err.Error()).WithHint("Run 'discord %s --help' for usage.", cmd.CommandPath()[len("discord"):])
+		return UsageError("%s", err.Error()).WithHint("Run '%s --help' for usage.", cmd.CommandPath())
 	})
 	root.CompletionOptions.DisableDefaultCmd = true
 
