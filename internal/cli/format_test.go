@@ -43,6 +43,17 @@ func withContent(base map[string]any, content string) map[string]any {
 	return m
 }
 
+// withTimestamp copies a fixture message with its timestamp replaced, so a
+// test can control exactly what compactTimestamp has to convert.
+func withTimestamp(base map[string]any, timestamp string) map[string]any {
+	m := make(map[string]any, len(base))
+	for k, v := range base {
+		m[k] = v
+	}
+	m["timestamp"] = timestamp
+	return m
+}
+
 // tsvLines splits tsv output into its rows.
 func tsvLines(out string) []string {
 	out = strings.TrimRight(out, "\n")
@@ -339,6 +350,44 @@ func TestCompactWidthZeroDisablesTruncation(t *testing.T) {
 	lines := compactLines(res.Stdout)
 	if len(lines) != 1 || !strings.HasSuffix(lines[0], long) || strings.Contains(lines[0], "...") {
 		t.Errorf("--width 0 truncated: %q", lines[0])
+	}
+}
+
+func TestCompactTimestampIsUTCRFC3339AtSecondPrecision(t *testing.T) {
+	r, s := readRunner(t, 0)
+	// The form Discord and exports actually store: a non-UTC numeric offset
+	// and sub-second digits. 13:18:24 -05:00 is 18:18:24 UTC, the issue's
+	// own example instant.
+	s.Append(withTimestamp(clitest.Message("2001", 1), "2026-08-28T13:18:24.654321-05:00"))
+	res := r.Run("channel", "read", "general", "--format=compact")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	lines := compactLines(res.Stdout)
+	if len(lines) != 1 {
+		t.Fatalf("want 1 line, got %d:\n%s", len(lines), res.Stdout)
+	}
+	if !strings.Contains(lines[0], ":2026-08-28T18:18:24Z:") {
+		t.Errorf("timestamp not converted to UTC RFC 3339 at second precision: %q", lines[0])
+	}
+	if strings.Contains(lines[0], ".654321") || strings.Contains(lines[0], "-05:00") {
+		t.Errorf("sub-second digits or the numeric offset leaked through: %q", lines[0])
+	}
+}
+
+func TestCompactTimestampFallsThroughWhenUnparseable(t *testing.T) {
+	r, s := readRunner(t, 0)
+	s.Append(withTimestamp(clitest.Message("2001", 1), "not-a-timestamp"))
+	res := r.Run("channel", "read", "general", "--format=compact")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	lines := compactLines(res.Stdout)
+	if len(lines) != 1 {
+		t.Fatalf("an unparseable timestamp must not drop the record: %d lines:\n%s", len(lines), res.Stdout)
+	}
+	if !strings.Contains(lines[0], ":not-a-timestamp:") {
+		t.Errorf("unparseable timestamp was not passed through: %q", lines[0])
 	}
 }
 

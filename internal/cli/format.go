@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
 	"github.com/arnoldadlv/discord-cli/internal/term"
@@ -58,15 +59,16 @@ type compactRow struct {
 	GuildSlug   string
 	ChannelSlug string
 	ID          string
-	Timestamp   string
+	Timestamp   string // the raw timestamp, as Discord or an export stored it
 	Author      string
 	Content     string
 }
 
-// writeCompact prints one line per row. Content is flattened to one line
-// and truncated to --width (0 disables truncation) with a trailing
-// ellipsis, the same way discord.Truncate marks every other truncation in
-// this tool.
+// writeCompact prints one line per row. The timestamp is normalised to UTC
+// RFC 3339 at second precision (compactTimestamp); content is flattened to
+// one line and truncated to --width (0 disables truncation) with a
+// trailing ellipsis, the same way discord.Truncate marks every other
+// truncation in this tool.
 func (a *app) writeCompact(rows []compactRow) {
 	w := a.stdout()
 	for _, r := range rows {
@@ -74,8 +76,21 @@ func (a *app) writeCompact(rows []compactRow) {
 		if a.flags.Width > 0 {
 			content = discord.Truncate(content, a.flags.Width)
 		}
-		fmt.Fprintf(w, "%s/%s:%s:%s:%s: %s\n", r.GuildSlug, r.ChannelSlug, r.ID, r.Timestamp, r.Author, content)
+		fmt.Fprintf(w, "%s/%s:%s:%s:%s: %s\n", r.GuildSlug, r.ChannelSlug, r.ID, compactTimestamp(r.Timestamp), r.Author, content)
 	}
+}
+
+// compactTimestamp renders a message timestamp as UTC RFC 3339 at second
+// precision, so it ends in Z: 2026-08-28T18:18:24Z, not the sub-second,
+// numeric-offset form Discord and exports store it in. A timestamp that
+// cannot be parsed is passed through unchanged rather than dropping the
+// record over it.
+func compactTimestamp(raw string) string {
+	t, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return raw
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // flattenContent puts message content on one line: newlines become the two
