@@ -122,6 +122,12 @@ func (a *app) guildExport(cmd *cobra.Command, guildFlag string, withThreads, ful
 		return ctx.Err()
 	}
 
+	for _, r := range results {
+		if export.Status(r.Status) == export.StatusExported {
+			a.updateIndex()
+			break
+		}
+	}
 	summary := exportSummaryJSON{Guild: namedJSON{ID: g.ID, Name: g.Name}, Channels: results}
 	for _, r := range results {
 		switch export.Status(r.Status) {
