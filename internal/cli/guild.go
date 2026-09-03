@@ -121,7 +121,7 @@ func (a *app) guildShow(cmd *cobra.Command, guildFlag string) error {
 	}
 	// Export status per message channel, from whatever is on disk.
 	byChannel := map[string]export.Item{}
-	for _, it := range export.Inventory(a.paths().ReadLocations()) {
+	for _, it := range a.allExports() {
 		if it.Guild.ID == g.ID {
 			if _, seen := byChannel[it.Channel.ID]; !seen {
 				byChannel[it.Channel.ID] = it

@@ -127,6 +127,9 @@ func (a *app) channelExport(cmd *cobra.Command, guildFlag, channelInput string, 
 	if err != nil {
 		return a.apiError(err)
 	}
+	if res.Status == export.StatusExported {
+		a.updateIndex()
+	}
 	return a.printExportResult(g, ch, res)
 }
 
@@ -155,6 +158,9 @@ func (a *app) dmExport(cmd *cobra.Command, input string, full bool) error {
 	res, err := a.exportOne(ctx, runner, a.dmTarget(d), d.DisplayName())
 	if err != nil {
 		return a.apiError(err)
+	}
+	if res.Status == export.StatusExported {
+		a.updateIndex()
 	}
 	g := discord.Guild{ID: export.DMGuildID, Name: export.DMGuildName}
 	ch := discord.Channel{ID: d.ID, Name: d.DisplayName(), Type: d.Type}
