@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
+	"github.com/arnoldadlv/discord-cli/internal/export"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
 
@@ -87,9 +88,10 @@ finished channels and the next run resumes from them.`,
 
 type guildShowJSON struct {
 	guildJSON
-	ChannelCount  int `json:"channel_count"`
-	CategoryCount int `json:"category_count"`
-	VoiceCount    int `json:"voice_count"`
+	ChannelCount  int                `json:"channel_count"`
+	CategoryCount int                `json:"category_count"`
+	VoiceCount    int                `json:"voice_count"`
+	Exports       []exportStatusJSON `json:"exports"`
 }
 
 func (a *app) guildShow(cmd *cobra.Command, guildFlag string) error {
@@ -117,6 +119,34 @@ func (a *app) guildShow(cmd *cobra.Command, guildFlag string) error {
 			out.VoiceCount++
 		}
 	}
+	// Export status per message channel, from whatever is on disk.
+	byChannel := map[string]export.Item{}
+	for _, it := range export.Inventory(a.paths().ReadLocations()) {
+		if it.Guild.ID == g.ID {
+			if _, seen := byChannel[it.Channel.ID]; !seen {
+				byChannel[it.Channel.ID] = it
+			}
+		}
+	}
+	out.Exports = []exportStatusJSON{}
+	for _, grp := range groupChannels(chs) {
+		for _, ch := range grp.Channels {
+			st := exportStatusJSON{Channel: namedJSON{ID: ch.ID, Name: ch.Name}}
+			if it, ok := byChannel[ch.ID]; ok {
+				st.Exported = true
+				st.Path = it.Path
+				st.Location = it.Location
+				st.Dialect = string(it.Dialect)
+				st.MessageCount = max(it.MessageCount, 0)
+				if it.LastExport != "" {
+					le := it.LastExport
+					st.LastExport = &le
+				}
+				st.NewestAt = it.DateRange.Before
+			}
+			out.Exports = append(out.Exports, st)
+		}
+	}
 	if a.flags.JSON {
 		return term.WriteJSON(a.stdout(), out)
 	}
@@ -124,5 +154,15 @@ func (a *app) guildShow(cmd *cobra.Command, guildFlag string) error {
 	fmt.Fprintf(w, "%s  %s\n", a.out.Bold(g.Name), a.out.Dim(g.ID))
 	fmt.Fprintf(w, "Members:   %d (%d online)\n", g.ApproximateMemberCount, g.ApproximatePresenceCount)
 	fmt.Fprintf(w, "Channels:  %d text, announcement, and forum; %d voice; %d categories\n", out.ChannelCount, out.VoiceCount, out.CategoryCount)
+	exported := 0
+	for _, st := range out.Exports {
+		if st.Exported {
+			exported++
+		}
+	}
+	fmt.Fprintf(w, "\n%s %d of %d channels\n", a.out.Bold("Exports:"), exported, len(out.Exports))
+	for _, st := range out.Exports {
+		fmt.Fprintln(w, a.exportStatusLine(st))
+	}
 	return nil
 }
