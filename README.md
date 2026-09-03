@@ -113,6 +113,30 @@ discord help guild search
 discord channel read -h
 ```
 
+## Agent skill
+
+The binary ships its own skill, a Markdown file that tells a coding agent how to use the tool. Print it with:
+
+```sh
+discord help --skill
+```
+
+To install it for Claude Code:
+
+```sh
+mkdir -p ~/.claude/skills/discord-cli
+discord help --skill > ~/.claude/skills/discord-cli/SKILL.md
+```
+
+Codex and other agents that follow the Agent Skills standard load skills from `~/.agents/skills` per user or `.agents/skills` per repository:
+
+```sh
+mkdir -p ~/.agents/skills/discord-cli
+discord help --skill > ~/.agents/skills/discord-cli/SKILL.md
+```
+
+The file is a snapshot of the skill for the installed version. Re-install it after upgrading the tool.
+
 ## Data locations
 
 The tool follows the XDG base directory rules. Nothing you already have is moved.
