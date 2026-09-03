@@ -13,6 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/arnoldadlv/discord-cli/internal/discord"
+	"github.com/arnoldadlv/discord-cli/internal/store"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
 
@@ -35,6 +37,9 @@ type app struct {
 
 	out term.Style // style for stdout
 	err term.Style // style for stderr
+
+	api         *discord.Client
+	tokenSource store.TokenSource
 }
 
 func (a *app) stdout() io.Writer { return a.env.Stdout }
@@ -178,12 +183,18 @@ func unknownVerb(cmd *cobra.Command, verb string) error {
 }
 
 func (a *app) nouns() []*cobra.Command {
+	with := func(n *cobra.Command, verbs ...*cobra.Command) *cobra.Command {
+		for _, v := range verbs {
+			n.AddCommand(v)
+		}
+		return n
+	}
 	return []*cobra.Command{
 		a.noun("guild", "List, show, search, and export guilds"),
 		a.noun("channel", "List, read, and export channels and threads"),
 		a.noun("dm", "List, read, search, and export direct messages"),
 		a.noun("export", "List and search the exports on disk"),
-		a.noun("auth", "Store and check the user token"),
+		with(a.noun("auth", "Store and check the user token"), a.authCommands()...),
 		a.noun("config", "Set and get configuration such as the default guild"),
 		a.noun("cache", "Inspect, rebuild, and clear the lookup cache and search index"),
 	}

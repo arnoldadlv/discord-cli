@@ -28,6 +28,10 @@ func main() {
 		StdoutIsTerminal: term.IsTerminal(int(os.Stdout.Fd())),
 		StderrIsTerminal: term.IsTerminal(int(os.Stderr.Fd())),
 		Version:          version,
+		ReadPassword: func() (string, error) {
+			b, err := term.ReadPassword(int(os.Stdin.Fd()))
+			return string(b), err
+		},
 	}
 	os.Exit(cli.Run(ctx, env))
 }
