@@ -15,8 +15,11 @@ import (
 type Candidate struct {
 	ID   string
 	Name string
-	// Aliases are other names that also identify the candidate, such as the
-	// participants of a group DM.
+	// AlsoNames are other primary names of the candidate itself, such as
+	// the display name of the person behind a DM. They rank with Name.
+	AlsoNames []string
+	// Aliases are weaker names that also identify the candidate, such as the
+	// participants of a group DM. They are tried after the primary names.
 	Aliases []string
 }
 
@@ -71,7 +74,9 @@ func key(name string) string {
 	return strings.Trim(Normalize(name), "-")
 }
 
-// Match resolves input against the candidates.
+// Match resolves input against the candidates. After the id step, primary
+// names are tried before aliases at each of the exact and normalised
+// steps, so a DM with a person beats a group that person is in.
 func Match(kind, input string, candidates []Candidate) (Candidate, error) {
 	input = strings.TrimSpace(input)
 	if IsID(input) {
@@ -85,46 +90,47 @@ func Match(kind, input string, candidates []Candidate) (Candidate, error) {
 	}
 
 	lower := strings.ToLower(input)
-	var exact []Candidate
-	for _, c := range candidates {
-		for _, n := range c.names() {
-			if strings.ToLower(n) == lower {
-				exact = append(exact, c)
-				break
-			}
-		}
-	}
-	if len(exact) == 1 {
-		return exact[0], nil
-	}
-	if len(exact) > 1 {
-		return Candidate{}, &AmbiguousError{Kind: kind, Input: input, Candidates: exact}
-	}
-
 	norm := key(input)
-	var normalised []Candidate
-	if norm != "" {
+	exact := func(n string) bool { return strings.ToLower(n) == lower }
+	normalised := func(n string) bool { return norm != "" && key(n) == norm }
+	steps := []func(c Candidate) bool{
+		func(c Candidate) bool { return anyMatch(c.primary(), exact) },
+		func(c Candidate) bool { return anyMatch(c.Aliases, exact) },
+		func(c Candidate) bool { return anyMatch(c.primary(), normalised) },
+		func(c Candidate) bool { return anyMatch(c.Aliases, normalised) },
+	}
+	for _, step := range steps {
+		var hits []Candidate
 		for _, c := range candidates {
-			for _, n := range c.names() {
-				if key(n) == norm {
-					normalised = append(normalised, c)
-					break
-				}
+			if step(c) {
+				hits = append(hits, c)
 			}
 		}
+		if len(hits) == 1 {
+			return hits[0], nil
+		}
+		if len(hits) > 1 {
+			return Candidate{}, &AmbiguousError{Kind: kind, Input: input, Candidates: hits}
+		}
 	}
-	if len(normalised) == 1 {
-		return normalised[0], nil
-	}
-	if len(normalised) > 1 {
-		return Candidate{}, &AmbiguousError{Kind: kind, Input: input, Candidates: normalised}
-	}
-
 	return Candidate{}, &NotFoundError{Kind: kind, Input: input, Suggestions: Suggest(input, candidates, 5)}
 }
 
+func anyMatch(names []string, f func(string) bool) bool {
+	for _, n := range names {
+		if f(n) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c Candidate) primary() []string {
+	return append([]string{c.Name}, c.AlsoNames...)
+}
+
 func (c Candidate) names() []string {
-	return append([]string{c.Name}, c.Aliases...)
+	return append(c.primary(), c.Aliases...)
 }
 
 // Suggest returns up to max candidate names that contain the input as a

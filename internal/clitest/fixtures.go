@@ -286,3 +286,16 @@ func ServeSearch(f *FakeDiscord, guildID string, n int) {
 		}}
 	})
 }
+
+// DMs is the /users/@me/channels response: two DMs and two group DMs.
+func DMs() []map[string]any {
+	kyle := map[string]any{"id": "9002", "username": "kyle", "global_name": "Kyle B", "discriminator": "0"}
+	ana := map[string]any{"id": "9001", "username": "ana", "global_name": "Ana", "discriminator": "0"}
+	maria := map[string]any{"id": "9004", "username": "maria", "global_name": "Maria", "discriminator": "0"}
+	return []map[string]any{
+		{"id": "6001", "type": 1, "recipients": []any{kyle}, "last_message_id": "5000010"},
+		{"id": "6002", "type": 3, "name": "Study Group", "recipients": []any{kyle, ana}, "last_message_id": "5000020", "owner_id": "100"},
+		{"id": "6003", "type": 1, "recipients": []any{maria}, "last_message_id": nil},
+		{"id": "6004", "type": 3, "name": nil, "recipients": []any{ana, maria}, "last_message_id": "5000030", "owner_id": "9001"},
+	}
+}

@@ -209,7 +209,7 @@ func (a *app) nouns() []*cobra.Command {
 	return []*cobra.Command{
 		with(a.noun("guild", "List, show, search, and export guilds"), a.guildCommands()...),
 		with(a.noun("channel", "List, read, and export channels and threads"), a.channelCommands()...),
-		a.noun("dm", "List, read, search, and export direct messages"),
+		with(a.noun("dm", "List, read, search, and export direct messages"), a.dmCommands()...),
 		a.noun("export", "List and search the exports on disk"),
 		with(a.noun("auth", "Store and check the user token"), a.authCommands()...),
 		with(a.noun("config", "Set and get configuration such as the default guild"), a.configCommands()...),

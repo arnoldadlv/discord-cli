@@ -225,3 +225,11 @@ func apiMessage(body []byte) string {
 	}
 	return s
 }
+
+// DisplayName is the user's display name, else the handle.
+func (u User) DisplayName() string {
+	if u.GlobalName != "" {
+		return u.GlobalName
+	}
+	return u.Username
+}
