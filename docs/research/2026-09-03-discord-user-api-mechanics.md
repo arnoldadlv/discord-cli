@@ -286,7 +286,7 @@ The `dms` command keeps only types 1 and 3 (dms.js:21), which the docs name `DM`
 - Legacy exports: `~/DiscordChatExporter.Cli.osx-arm64/exports/` (store.js:6). This directory is only read, never written (store.js:46-91).
 - File name: `<normalized channel name>.json` (store.js:103). The write is `JSON.stringify(data, null, 2)`, so two-space pretty printing (store.js:104).
 
-Because the file name is the normalized channel name and not the channel id, two channels whose names differ only in emoji or case, e.g. "general" and "🔮general", would overwrite each other. The DiscordChatExporter naming on disk includes the id, e.g. `Cooey COE - access-control - 3.1.8 [1020057215656284251].json` (directory listing of the legacy exports).
+Because the file name is the normalized channel name and not the channel id, two channels whose names differ only in emoji or case, e.g. "general" and "🔮general", would overwrite each other. The DiscordChatExporter naming on disk includes the id, e.g. `Cooey COE - access-control - 3.1.8 [<channel-id>].json` (directory listing of the legacy exports).
 
 ### The envelope
 
@@ -305,7 +305,7 @@ Because the file name is the normalized channel name and not the channel id, two
 }
 ```
 
-A live file confirms the shape: `general.json` opens with `guild.id` `579151027169918986`, `guild.name` `Cooey COE`, `channel.name` `🔮general`, `channel.type` `0`, and `dateRange.after` `2019-05-19T20:10:55.344000+00:00` (first 16 lines of `~/.discord-cli/exports/cooey-coe/general.json`). The top-level keys are exactly `channel, dateRange, guild, messageCount, messages` (jq `keys` on announcements.json). The comment above the object says "Write in DiscordChatExporter-compatible format" (export.js:63), but `dateRange` means something different in the two tools. In the Node file it is the span of the data. In the DiscordChatExporter file it is the requested filter and is `null`/`null` when no range was requested (legacy 3.1.8 file, lines 13-16).
+A live file confirms the shape: `general.json` opens with `guild.id` `<guild-id>`, `guild.name` `Cooey COE`, `channel.name` `🔮general`, `channel.type` `0`, and `dateRange.after` `2019-05-19T20:10:55.344000+00:00` (first 16 lines of `~/.discord-cli/exports/cooey-coe/general.json`). The top-level keys are exactly `channel, dateRange, guild, messageCount, messages` (jq `keys` on announcements.json). The comment above the object says "Write in DiscordChatExporter-compatible format" (export.js:63), but `dateRange` means something different in the two tools. In the Node file it is the span of the data. In the DiscordChatExporter file it is the requested filter and is `null`/`null` when no range was requested (legacy 3.1.8 file, lines 13-16).
 
 ### .meta.json
 
@@ -314,8 +314,8 @@ Path: `<export dir>/.meta.json` (store.js:22-24). Default when missing or unread
 ```json
 {
   "channels": {
-    "579152559047049216": {
-      "lastMessageId": "1488886826080141443",
+    "<channel-id>": {
+      "lastMessageId": "<message-id>",
       "lastExport": "2026-04-07T06:32:31.274Z",
       "messageCount": 90
     }
@@ -352,7 +352,7 @@ Both files were inspected with `head` and `jq`, not read in full.
 
 ### Side by side
 
-| Field | Node CLI export (`~/.discord-cli/exports/cooey-coe/general.json`) | DiscordChatExporter export (`Cooey COE - access-control - 3.1.8 [1020057215656284251].json`) |
+| Field | Node CLI export (`~/.discord-cli/exports/cooey-coe/general.json`) | DiscordChatExporter export (`Cooey COE - access-control - 3.1.8 [<channel-id>].json`) |
 |---|---|---|
 | top-level keys | `channel, dateRange, guild, messageCount, messages` | `channel, dateRange, exportedAt, guild, messageCount, messages` |
 | `guild` | `{id, name}` | `{id, name, iconUrl}` (lines 2-6) |
@@ -364,7 +364,7 @@ Both files were inspected with `head` and `jq`, not read in full.
 | edit time | `edited_timestamp` | `timestampEdited` (line 25) |
 | pinned | `pinned` | `isPinned` (line 27) |
 | `author` keys | `accent_color, avatar, avatar_decoration_data, banner, banner_color, clan, collectibles, discriminator, display_name_styles, flags, global_name, id, primary_guild, public_flags, username` | `avatarUrl, color, discriminator, id, isBot, name, nickname, roles` |
-| author display name | `global_name` | `nickname` (guild nickname, `tim`) and `name` (`800.53`) (lines 30-33) |
+| author display name | `global_name` | `nickname` (guild nickname, `<nickname>`) and `name` (`<handle>`) (lines 30-33) |
 | author handle | `username` | `name` |
 | roles | not present | `roles[]` with `id, name, color, position` (lines 36-42) |
 | `channel_id` on message | present | absent |
@@ -397,22 +397,22 @@ The CLI is squarely in this category. It uses a user token (client.js:23-34), im
 
 Local files (line numbers as printed by `cat -n`):
 
-- `/Users/arnoldd/discord-cli/legacy/node/bin/discord.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/client.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/store.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/formatter.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/commands/guilds.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/commands/channels.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/commands/dms.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/commands/messages.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/commands/search.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/commands/export.js`
-- `/Users/arnoldd/discord-cli/legacy/node/src/commands/info.js`
-- `/Users/arnoldd/.claude/skills/searching-discord/SKILL.md` (cited as SKILL.md)
+- `legacy/node/bin/discord.js`
+- `legacy/node/src/client.js`
+- `legacy/node/src/store.js`
+- `legacy/node/src/formatter.js`
+- `legacy/node/src/commands/guilds.js`
+- `legacy/node/src/commands/channels.js`
+- `legacy/node/src/commands/dms.js`
+- `legacy/node/src/commands/messages.js`
+- `legacy/node/src/commands/search.js`
+- `legacy/node/src/commands/export.js`
+- `legacy/node/src/commands/info.js`
+- `~/.claude/skills/searching-discord/SKILL.md` (cited as SKILL.md)
 - `~/.discord-cli/exports/cooey-coe/general.json`, `announcements.json`, `.meta.json` (read with `head -c` and `jq`)
-- `~/DiscordChatExporter.Cli.osx-arm64/exports/cooey-coe/Cooey COE - access-control - 3.1.8 [1020057215656284251].json` (read with `head -n 70` and `jq`)
+- `~/DiscordChatExporter.Cli.osx-arm64/exports/cooey-coe/Cooey COE - access-control - 3.1.8 [<channel-id>].json` (read with `head -n 70` and `jq`)
 
-Downloaded to the scratch directory `/private/tmp/claude-501/-Users-arnoldd-discord-cli/b1ecd9c7-94c6-457e-8d65-9d1ebce2f0a5/scratchpad/`:
+Downloaded to the scratch directory `<scratch directory>/`:
 
 - `DiscordClient.cs`, DiscordChatExporter `DiscordChatExporter.Core/Discord/DiscordClient.cs` (879 lines)
 - `Token-and-IDs.md`, DiscordChatExporter `.docs/Token-and-IDs.md`

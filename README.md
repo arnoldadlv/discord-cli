@@ -65,7 +65,7 @@ Read a channel or a DM. The newest messages come oldest first, with attachments,
 ```sh
 discord channel read general
 discord channel read news --limit 5
-discord dm read kyle
+discord dm read someone
 ```
 
 Channel names can leave the emoji off: `news` finds `📰news`. A typo gets a "did you mean" with the closest names.
@@ -81,7 +81,7 @@ discord guild search --query "policy" --has link --json
 Discord has no search for DMs, so `dm search` fetches the DM's history and filters it. For repeated research, export the DM once and search the export:
 
 ```sh
-discord dm search kyle --query "meeting"
+discord dm search someone --query "meeting"
 ```
 
 Export to JSON. Exports are incremental: the second run fetches only what is new. `--full` refetches everything. `--threads` exports threads as their own files.
@@ -90,7 +90,7 @@ Export to JSON. Exports are incremental: the second run fetches only what is new
 discord guild export
 discord guild export --threads --concurrency 2
 discord channel export general
-discord dm export kyle
+discord dm export someone
 ```
 
 Search your exports on your own machine, without limits. Say where to search with `--guild` or `--all`:
@@ -98,7 +98,7 @@ Search your exports on your own machine, without limits. Say where to search wit
 ```sh
 discord export list
 discord export search "assessment" --guild my-guild
-discord export search policy --all --author kyle --after 2026-01-01
+discord export search policy --all --author someone --after 2026-01-01
 discord export search MFA --guild dm --json
 ```
 
