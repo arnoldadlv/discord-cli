@@ -36,3 +36,22 @@ func Channels() []map[string]any {
 		{"id": "2007", "name": "random", "type": 0, "position": 5},
 	}
 }
+
+// Threads returns the thread objects for a parent channel, split into
+// active and archived, for the per-channel thread search endpoint.
+func Threads(parentID string) (active, archived []map[string]any) {
+	switch parentID {
+	case "2001":
+		active = []map[string]any{
+			{"id": "3001", "name": "welcome thread", "type": 11, "parent_id": "2001", "thread_metadata": map[string]any{"archived": false}},
+		}
+		archived = []map[string]any{
+			{"id": "3002", "name": "old planning", "type": 11, "parent_id": "2001", "thread_metadata": map[string]any{"archived": true, "archive_timestamp": "2026-01-02T03:04:05.000000+00:00"}},
+		}
+	case "2006":
+		active = []map[string]any{
+			{"id": "3003", "name": "How do I scope?", "type": 11, "parent_id": "2006", "thread_metadata": map[string]any{"archived": false}},
+		}
+	}
+	return active, archived
+}
