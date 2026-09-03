@@ -135,11 +135,6 @@ func (a *app) exportSearch(cmd *cobra.Command, query, guild string, all bool, au
 	return nil
 }
 
-// runLocalSearch is the scan; the index ticket makes it prefer the index.
-func (a *app) runLocalSearch(cmd *cobra.Command, items []export.Item, q search.Query) ([]search.Result, error) {
-	return search.Scan(items, q)
-}
-
 func (a *app) writeSearchResult(r search.Result) {
 	s := a.out
 	w := a.stdout()

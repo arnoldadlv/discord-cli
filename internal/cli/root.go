@@ -42,6 +42,8 @@ type app struct {
 	api         *discord.Client
 	tokenSource store.TokenSource
 	metaStore   *export.MetaStore
+
+	exportsOnDisk []export.Item // inventory, computed once per run
 }
 
 func (a *app) stdout() io.Writer { return a.env.Stdout }
@@ -213,7 +215,7 @@ func (a *app) nouns() []*cobra.Command {
 		with(a.noun("export", "List and search the exports on disk"), a.exportListCommand(), a.exportSearchCommand()),
 		with(a.noun("auth", "Store and check the user token"), a.authCommands()...),
 		with(a.noun("config", "Set and get configuration such as the default guild"), a.configCommands()...),
-		a.noun("cache", "Inspect, rebuild, and clear the lookup cache and search index"),
+		with(a.noun("cache", "Inspect, rebuild, and clear the lookup cache and search index"), a.cacheCommands()...),
 	}
 }
 
