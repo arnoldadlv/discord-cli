@@ -163,7 +163,22 @@ query term appears in it. For repeated research, export the DM once with
 	search.Flags().StringVar(&after, "after", "", "only messages after this date (YYYY-MM-DD or RFC 3339)")
 	search.Flags().StringVar(&before, "before", "", "only messages before this date (YYYY-MM-DD or RFC 3339)")
 	search.Flags().IntVarP(&limit, "limit", "n", 25, "number of results to show")
-	return []*cobra.Command{list, read, search}
+
+	var exFull bool
+	exp := &cobra.Command{
+		Use:   "export <dm>",
+		Short: "Export a DM or group DM to a local JSON file, incrementally",
+		Long: `Export a DM or group DM to a JSON file in the dm directory beside the guild
+exports. Runs are incremental, found by the DM's id; --full refetches.`,
+		Example: `  discord dm export kyle
+  discord dm export "Study Group" --full`,
+		Args: exactOnePositional("dm"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.dmExport(cmd, args[0], exFull)
+		},
+	}
+	exp.Flags().BoolVar(&exFull, "full", false, "ignore the export meta and refetch every message")
+	return []*cobra.Command{list, read, search, exp}
 }
 
 func joinStrings(parts []string, sep string) string {
