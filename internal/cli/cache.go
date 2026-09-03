@@ -56,36 +56,49 @@ func (a *app) reportUnreadable(list []search.Unreadable) {
 	}
 }
 
+// localIndex opens the search index when it covers every export on disk at
+// its current size and modification time. It returns nil, after one line on
+// stderr saying why, when the work has to read the exports instead. The
+// caller closes what it gets.
+func (a *app) localIndex() *search.Index {
+	indexPath := a.paths().IndexFile()
+	if !search.Exists(indexPath) {
+		a.notice("No search index yet; scanning exports instead. Run 'discord cache rebuild' to make searches fast.")
+		return nil
+	}
+	ix, err := search.Open(indexPath)
+	if err != nil {
+		a.notice("Search index unreadable (%v); scanning exports instead. Run 'discord cache rebuild' to repair it.", err)
+		return nil
+	}
+	stale, err := ix.Stale(a.allExports())
+	if err != nil {
+		ix.Close()
+		a.notice("Search index unreadable (%v); scanning exports instead. Run 'discord cache rebuild' to repair it.", err)
+		return nil
+	}
+	if stale > 0 {
+		ix.Close()
+		a.notice("Search index is out of date for %s; scanning exports instead. Run 'discord cache rebuild' to make searches fast.", plural(stale, "file"))
+		return nil
+	}
+	return ix
+}
+
 // runLocalSearch uses the index when every export on disk is indexed at
 // its current size and modification time, and scans otherwise.
 func (a *app) runLocalSearch(cmd *cobra.Command, items []export.Item, q search.Query) ([]search.Result, error) {
-	all := a.allExports()
-	indexPath := a.paths().IndexFile()
-	if search.Exists(indexPath) {
-		ix, err := search.Open(indexPath)
-		if err == nil {
-			defer ix.Close()
-			stale, err := ix.Stale(all)
-			if err == nil && stale == 0 {
-				paths := make([]string, len(items))
-				for i, it := range items {
-					paths[i] = it.Path
-				}
-				res, err := ix.Search(paths, q)
-				if err == nil {
-					return res, nil
-				}
-				a.notice("Search index failed (%v); scanning exports instead. Run 'discord cache rebuild' to repair it.", err)
-			} else if err == nil {
-				a.notice("Search index is out of date for %s; scanning exports instead. Run 'discord cache rebuild' to make searches fast.", plural(stale, "file"))
-			} else {
-				a.notice("Search index unreadable (%v); scanning exports instead. Run 'discord cache rebuild' to repair it.", err)
-			}
-		} else {
-			a.notice("Search index unreadable (%v); scanning exports instead. Run 'discord cache rebuild' to repair it.", err)
+	if ix := a.localIndex(); ix != nil {
+		defer ix.Close()
+		paths := make([]string, len(items))
+		for i, it := range items {
+			paths[i] = it.Path
 		}
-	} else {
-		a.notice("No search index yet; scanning exports instead. Run 'discord cache rebuild' to make searches fast.")
+		res, err := ix.Search(paths, q)
+		if err == nil {
+			return res, nil
+		}
+		a.notice("Search index failed (%v); scanning exports instead. Run 'discord cache rebuild' to repair it.", err)
 	}
 	return search.Scan(items, q)
 }
