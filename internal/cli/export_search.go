@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arnoldadlv/discord-cli/internal/export"
+	"github.com/arnoldadlv/discord-cli/internal/resolve"
 	"github.com/arnoldadlv/discord-cli/internal/search"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
@@ -116,6 +117,14 @@ func (a *app) exportSearch(cmd *cobra.Command, query, guild string, all bool, au
 			out.Results = append(out.Results, toSearchResultJSON(r))
 		}
 		return term.WriteJSON(a.stdout(), out)
+	}
+	if a.flags.Compact {
+		rows := make([]compactRow, len(shown))
+		for i, r := range shown {
+			rows[i] = compactRow{GuildSlug: resolve.Key(r.GuildName), ChannelSlug: resolve.Key(r.ChannelName), ID: r.MessageID, Timestamp: r.Timestamp, Author: r.Author, Content: r.Content}
+		}
+		a.writeCompact(rows)
+		return nil
 	}
 	w := a.stdout()
 	if len(results) == 0 {

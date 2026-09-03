@@ -31,10 +31,15 @@ var skillMarkdown string
 
 // globalFlags are registered on the root and read by every command.
 type globalFlags struct {
-	JSON    bool
-	NoCache bool
-	Timeout time.Duration
-	NoColor bool
+	JSON       bool
+	FormatFlag string // raw --format value, before validation against --json
+	Compact    bool   // resolved: --format=compact
+	TSV        bool   // resolved: --format=tsv
+	Width      int    // --width: compact content truncation, 0 disables it
+	NoHeader   bool   // --no-header: suppress the tsv header row
+	NoCache    bool
+	Timeout    time.Duration
+	NoColor    bool
 }
 
 // app is the per-run state shared by the commands.
@@ -118,7 +123,10 @@ func (a *app) rootCommand() *cobra.Command {
 DMs, live search, and local exports you can search without limits.
 
 Commands are noun then verb: discord <noun> <verb> [flags]. Every command
-accepts --json for stable machine output; progress and errors go to stderr.
+accepts --format: human (default), json (same as --json), compact (one
+message per line, for channel read, dm read, export search, guild search,
+and message read), or tsv (for guild list, channel list, dm list, export
+list, and cache status). Progress and errors always go to stderr.
 
 Exit codes: 0 success, 1 unexpected error, 2 usage error, 3 authentication
 failed, 4 guild, channel, DM, or message not found, 5 no exports found, 6 rate limit
@@ -145,7 +153,7 @@ Report problems at ` + RepoURL,
 			a.ran = true
 			a.out = term.Style{Enabled: term.ColorEnabled(a.env.StdoutIsTerminal, a.env.Getenv, a.flags.NoColor)}
 			a.err = term.Style{Enabled: term.ColorEnabled(a.env.StderrIsTerminal, a.env.Getenv, a.flags.NoColor)}
-			return nil
+			return a.resolveFormat()
 		},
 	}
 	root.SetIn(a.env.Stdin)
@@ -159,7 +167,10 @@ Report problems at ` + RepoURL,
 	root.SetHelpCommand(a.helpCommand(root))
 
 	pf := root.PersistentFlags()
-	pf.BoolVar(&a.flags.JSON, "json", false, "emit JSON on stdout instead of human output")
+	pf.BoolVar(&a.flags.JSON, "json", false, "emit JSON on stdout instead of human output (same as --format=json)")
+	pf.StringVar(&a.flags.FormatFlag, "format", "", "output format: human (default), json (same as --json), compact (one record per line, for message commands), tsv (for list commands)")
+	pf.IntVar(&a.flags.Width, "width", 200, "truncate --format=compact content to this many characters, 0 disables it")
+	pf.BoolVar(&a.flags.NoHeader, "no-header", false, "suppress the header row in --format=tsv")
 	pf.BoolVar(&a.flags.NoCache, "no-cache", false, "bypass the lookup cache of guilds, channels, and DMs")
 	pf.DurationVar(&a.flags.Timeout, "timeout", 30*time.Second, "per-request timeout for Discord (e.g. 45s, 2m)")
 	pf.BoolVar(&a.flags.NoColor, "no-color", false, "disable colour even on a terminal")

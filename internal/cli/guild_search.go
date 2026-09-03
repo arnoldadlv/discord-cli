@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
+	"github.com/arnoldadlv/discord-cli/internal/resolve"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
 
@@ -114,6 +115,19 @@ func (a *app) guildSearch(cmd *cobra.Command, guildFlag, query, channel, has str
 			Messages:     rawMessages(res.Messages),
 			ChannelNames: names,
 		})
+	}
+	if a.flags.Compact {
+		gslug := resolve.Key(g.Name)
+		rows := make([]compactRow, len(res.Messages))
+		for i, m := range res.Messages {
+			cslug := m.ChannelID
+			if n, ok := names[m.ChannelID]; ok {
+				cslug = resolve.Key(n)
+			}
+			rows[i] = compactRow{GuildSlug: gslug, ChannelSlug: cslug, ID: m.ID, Timestamp: m.Timestamp, Author: m.Author.DisplayName(), Content: m.Content}
+		}
+		a.writeCompact(rows)
+		return nil
 	}
 	if len(res.Messages) == 0 {
 		fmt.Fprintf(a.stdout(), "No results for %q in %s.\n", query, g.Name)

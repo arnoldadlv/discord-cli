@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
+	"github.com/arnoldadlv/discord-cli/internal/export"
 	"github.com/arnoldadlv/discord-cli/internal/resolve"
 	"github.com/arnoldadlv/discord-cli/internal/search"
 	"github.com/arnoldadlv/discord-cli/internal/term"
@@ -121,7 +122,7 @@ func (a *app) dmCommands() []*cobra.Command {
 				}
 				rows = append(rows, []string{j.Name, j.Type, strings.Join(parts, ", "), d.ID})
 			}
-			term.Table(a.stdout(), a.out, []term.Column{{Header: "NAME"}, {Header: "TYPE"}, {Header: "PARTICIPANTS"}, {Header: "ID"}}, rows)
+			a.writeTable([]term.Column{{Header: "NAME"}, {Header: "TYPE"}, {Header: "PARTICIPANTS"}, {Header: "ID"}}, rows)
 			return nil
 		},
 	}
@@ -212,6 +213,15 @@ func (a *app) dmRead(cmd *cobra.Command, input string, limit int) error {
 			Channel:  namedJSON{ID: d.ID, Name: d.DisplayName(), Type: intPtr(d.Type)},
 			Messages: compactMessages(ms),
 		})
+	}
+	if a.flags.Compact {
+		gslug, cslug := resolve.Key(export.DMGuildName), resolve.Key(d.DisplayName())
+		rows := make([]compactRow, len(ms))
+		for i, m := range ms {
+			rows[i] = compactRow{GuildSlug: gslug, ChannelSlug: cslug, ID: m.ID, Timestamp: m.Timestamp, Author: m.Author.DisplayName(), Content: m.Content}
+		}
+		a.writeCompact(rows)
+		return nil
 	}
 	if len(ms) == 0 {
 		fmt.Fprintf(a.stdout(), "No messages with %s.\n", d.DisplayName())

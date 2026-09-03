@@ -211,6 +211,22 @@ func (a *app) writeMessageRead(out messageReadJSON, ms []discord.Message, id str
 		}
 		return term.WriteJSON(a.stdout(), out)
 	}
+	if a.flags.Compact {
+		gslug := ""
+		if out.Guild != nil {
+			gslug = resolve.Key(out.Guild.Name)
+		}
+		cslug := out.Channel.ID
+		if out.Channel.Name != "" {
+			cslug = resolve.Key(out.Channel.Name)
+		}
+		rows := make([]compactRow, len(ms))
+		for i, m := range ms {
+			rows[i] = compactRow{GuildSlug: gslug, ChannelSlug: cslug, ID: m.ID, Timestamp: m.Timestamp, Author: m.Author.DisplayName(), Content: m.Content}
+		}
+		a.writeCompact(rows)
+		return nil
+	}
 	mw := a.messageWriter()
 	mw.mark = id
 	mw.writeAll(ms)

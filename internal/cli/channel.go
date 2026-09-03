@@ -224,6 +224,15 @@ func (a *app) channelRead(cmd *cobra.Command, guildFlag, channelInput string, wi
 			Messages: compactMessages(ms),
 		})
 	}
+	if a.flags.Compact {
+		gslug, cslug := resolve.Key(g.Name), resolve.Key(ch.Name)
+		rows := make([]compactRow, len(ms))
+		for i, m := range ms {
+			rows[i] = compactRow{GuildSlug: gslug, ChannelSlug: cslug, ID: m.ID, Timestamp: m.Timestamp, Author: m.Author.DisplayName(), Content: m.Content}
+		}
+		a.writeCompact(rows)
+		return nil
+	}
 	if len(ms) == 0 {
 		fmt.Fprintf(a.stdout(), "No messages in #%s.\n", ch.Name)
 		return nil
@@ -272,6 +281,24 @@ func (a *app) channelList(cmd *cobra.Command, guildFlag string, withThreads bool
 			out = []channelJSON{}
 		}
 		return term.WriteJSON(a.stdout(), out)
+	}
+	if a.flags.TSV {
+		cols := []term.Column{{Header: "CATEGORY"}, {Header: "CHANNEL"}, {Header: "TYPE"}, {Header: "ID"}, {Header: "PARENT"}}
+		var rows [][]string
+		for _, grp := range groups {
+			category := ""
+			if grp.Category != nil {
+				category = grp.Category.Name
+			}
+			for _, ch := range grp.Channels {
+				rows = append(rows, []string{category, ch.Name, typeLabel(ch.Type), ch.ID, ""})
+				for _, t := range threads[ch.ID] {
+					rows = append(rows, []string{category, t.Name, typeLabel(t.Type), t.ID, ch.Name})
+				}
+			}
+		}
+		term.TSV(a.stdout(), cols, rows, a.flags.NoHeader)
+		return nil
 	}
 	w := a.stdout()
 	for i, grp := range groups {

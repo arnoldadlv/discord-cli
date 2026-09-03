@@ -44,7 +44,7 @@ func (a *app) guildCommands() []*cobra.Command {
 			for i, g := range gs {
 				rows[i] = []string{g.Name, g.ID, strconv.Itoa(g.ApproximateMemberCount), strconv.Itoa(g.ApproximatePresenceCount)}
 			}
-			term.Table(a.stdout(), a.out, []term.Column{{Header: "NAME"}, {Header: "ID"}, {Header: "MEMBERS", Right: true}, {Header: "ONLINE", Right: true}}, rows)
+			a.writeTable([]term.Column{{Header: "NAME"}, {Header: "ID"}, {Header: "MEMBERS", Right: true}, {Header: "ONLINE", Right: true}}, rows)
 			return nil
 		},
 	}
