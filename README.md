@@ -6,7 +6,21 @@ It talks to Discord as your own account, with your user token. It never uses a b
 
 ## Install
 
-You need Go 1.25 or newer. No C compiler is needed. The repository is public, so no credentials are needed to fetch it.
+Pick one of the two ways.
+
+### With the install script
+
+This works on macOS and Linux and does not need Go. It downloads the binary for your machine from the latest GitHub release, checks it against the release's checksums, and puts it in `~/.local/bin`.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/arnoldadlv/discord-cli/main/install.sh | bash
+```
+
+If `~/.local/bin` is not on your `PATH`, the script prints the line to add. Set `DISCORD_INSTALL_DIR` to install somewhere else, or `DISCORD_VERSION=v0.1.0` to pin a release. Windows binaries are on the [releases page](https://github.com/arnoldadlv/discord-cli/releases).
+
+### With Go
+
+You need Go 1.25 or newer. No C compiler is needed.
 
 1. Install the binary:
 
@@ -32,17 +46,17 @@ You need Go 1.25 or newer. No C compiler is needed. The repository is public, so
 
    Then open a new terminal, or run `source ~/.zshrc` or `source ~/.bashrc` in the current one.
 
-3. Check that it runs:
+### Check that it runs
 
-   ```sh
-   discord --version
-   ```
+```sh
+discord --version
+```
 
-   This prints the version, the Go version it was built with, and the commit.
+This prints the version, the Go version it was built with, and the commit.
 
 ## Upgrade
 
-Run the same install line again:
+Run the same install line again. The script replaces the binary with the latest release. With Go:
 
 ```sh
 go install github.com/arnoldadlv/discord-cli/cmd/discord@latest
@@ -259,7 +273,8 @@ Nothing leaves your machine except requests to Discord. There are no analytics.
 ## Uninstall
 
 ```sh
-rm "$(go env GOPATH)/bin/discord"
+rm ~/.local/bin/discord            # installed with the script
+rm "$(go env GOPATH)/bin/discord"  # installed with Go
 rm -r ~/.config/discord-cli ~/.cache/discord-cli
 ```
 
@@ -279,7 +294,7 @@ Tests drive the tool through its command boundary against a fake Discord server 
 DISCORD_CLI_LIVE_TEST=1 DISCORD_TOKEN=... go test ./internal/smoke/
 ```
 
-CI runs `gofmt -l .`, `go vet ./...`, `go test -race ./...`, and a `CGO_ENABLED=0 go build ./...` on every pull request.
+CI runs `gofmt -l .`, `go vet ./...`, `go test -race ./...`, and a `CGO_ENABLED=0 go build ./...` on every pull request. Pushing a tag like `v0.1.0` builds the release binaries for macOS, Linux, and Windows on amd64 and arm64, with a `checksums.txt`, and publishes a GitHub Release. The install script's tests run it against a local fake release server.
 
 The glossary is in `CONTEXT.md` and the design decisions are under `docs/adr/`. The Node.js CLI this replaces is kept under `legacy/node/` for reference.
 
