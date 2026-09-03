@@ -38,8 +38,21 @@ func (a *app) updateIndex() {
 		return
 	}
 	defer ix.Close()
-	if _, err := ix.Update(items, nil); err != nil {
+	if _, unreadable, err := ix.Update(items, nil); err != nil {
 		a.notice("Search index not updated: %v (run 'discord cache rebuild')", err)
+	} else {
+		a.reportUnreadable(unreadable)
+	}
+}
+
+// reportUnreadable tells the person which exports the index had to skip.
+func (a *app) reportUnreadable(list []search.Unreadable) {
+	if len(list) == 0 {
+		return
+	}
+	a.notice("Skipped %s the index cannot parse (searches skip them too):", plural(len(list), "unreadable export"))
+	for _, u := range list {
+		a.notice("  %s: %s", a.shortPath(u.Path), strings.TrimPrefix(u.Err, u.Path+": "))
 	}
 }
 
@@ -78,13 +91,15 @@ func (a *app) runLocalSearch(cmd *cobra.Command, items []export.Item, q search.Q
 }
 
 type indexStatusJSON struct {
-	Present      bool   `json:"present"`
-	Path         string `json:"path"`
-	SizeBytes    int64  `json:"size_bytes"`
-	MessageCount int    `json:"message_count"`
-	FilesIndexed int    `json:"files_indexed"`
-	FilesOnDisk  int    `json:"files_on_disk"`
-	FilesStale   int    `json:"files_stale"`
+	Present         bool     `json:"present"`
+	Path            string   `json:"path"`
+	SizeBytes       int64    `json:"size_bytes"`
+	MessageCount    int      `json:"message_count"`
+	FilesIndexed    int      `json:"files_indexed"`
+	FilesOnDisk     int      `json:"files_on_disk"`
+	FilesStale      int      `json:"files_stale"`
+	FilesUnreadable int      `json:"files_unreadable"`
+	Unreadable      []string `json:"unreadable,omitempty"`
 }
 
 type lookupStatusJSON struct {
@@ -145,13 +160,22 @@ func (a *app) cacheStatus() error {
 			return fmt.Errorf("opening index: %w", err)
 		}
 		defer ix.Close()
-		files, msgs, err := ix.Stats()
+		files, msgs, bad, err := ix.Stats()
 		if err != nil {
 			return err
 		}
-		st.Index.FilesIndexed, st.Index.MessageCount = files, msgs
+		st.Index.FilesIndexed, st.Index.MessageCount, st.Index.FilesUnreadable = files, msgs, bad
 		if st.Index.FilesStale, err = ix.Stale(items); err != nil {
 			return err
+		}
+		if bad > 0 {
+			list, err := ix.UnreadableFiles()
+			if err != nil {
+				return err
+			}
+			for _, u := range list {
+				st.Index.Unreadable = append(st.Index.Unreadable, u.Path)
+			}
 		}
 	}
 	entries, _ := os.ReadDir(p.LookupCacheDir())
@@ -190,6 +214,12 @@ func (a *app) cacheStatus() error {
 			fmt.Fprintf(w, "; %s", a.out.Green("up to date"))
 		}
 		fmt.Fprintln(w)
+		if st.Index.FilesUnreadable > 0 {
+			fmt.Fprintf(w, "  %s skipped, cannot be parsed (probably cut off by an interrupted export):\n", a.out.Yellow(fmt.Sprintf("%d unreadable", st.Index.FilesUnreadable)))
+			for _, p := range st.Index.Unreadable {
+				fmt.Fprintf(w, "    %s\n", a.shortPath(p))
+			}
+		}
 	}
 	fmt.Fprintln(w, a.out.Bold("Lookup cache"))
 	if len(st.Lookup) == 0 {
@@ -221,19 +251,24 @@ func (a *app) cacheRebuild() error {
 	if a.env.StderrIsTerminal {
 		progress = func(path string) { fmt.Fprintf(a.stderr(), "\r\033[K  indexing %s", a.shortPath(path)) }
 	}
-	n, err := ix.Update(items, progress)
+	n, unreadable, err := ix.Update(items, progress)
 	if a.env.StderrIsTerminal {
 		fmt.Fprint(a.stderr(), "\r\033[K")
 	}
 	if err != nil {
 		return fmt.Errorf("rebuilding index: %w", err)
 	}
-	_, msgs, err := ix.Stats()
+	a.reportUnreadable(unreadable)
+	_, msgs, _, err := ix.Stats()
 	if err != nil {
 		return err
 	}
 	if a.flags.JSON {
-		return term.WriteJSON(a.stdout(), map[string]any{"files_indexed": n, "message_count": msgs, "path": p.IndexFile()})
+		skipped := make([]string, 0, len(unreadable))
+		for _, u := range unreadable {
+			skipped = append(skipped, u.Path)
+		}
+		return term.WriteJSON(a.stdout(), map[string]any{"files_indexed": n, "message_count": msgs, "files_unreadable": len(unreadable), "unreadable": skipped, "path": p.IndexFile()})
 	}
 	fmt.Fprintf(a.stdout(), "Indexed %s, %s, into %s\n", plural(n, "file"), plural(msgs, "message"), a.shortPath(p.IndexFile()))
 	return nil

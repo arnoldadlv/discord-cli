@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS files (
 	guild_id TEXT, guild_name TEXT,
 	channel_id TEXT, channel_name TEXT,
 	dialect TEXT,
-	message_count INTEGER NOT NULL
+	message_count INTEGER NOT NULL,
+	error TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS messages (
 	id INTEGER PRIMARY KEY,
@@ -64,6 +65,11 @@ func Open(path string) (*Index, error) {
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("creating index schema: %w", err)
+	}
+	// Indexes built before the error column existed get it added.
+	if _, err := db.Exec(`ALTER TABLE files ADD COLUMN error TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		db.Close()
+		return nil, fmt.Errorf("upgrading index schema: %w", err)
 	}
 	return &Index{Path: path, db: db}, nil
 }
@@ -128,16 +134,24 @@ func (ix *Index) Stale(items []export.Item) (int, error) {
 	return stale, nil
 }
 
+// Unreadable is an export the index could not parse, for example a file
+// cut off by an interrupted DiscordChatExporter run. It is remembered at
+// its current size and modification time so it does not make the index
+// look stale, and searched by neither the index nor the scan.
+type Unreadable struct {
+	Path string
+	Err  string
+}
+
 // Update re-indexes every export whose size or modification time changed
 // since it was indexed, and forgets files no longer on disk. It returns how
-// many files were (re)indexed.
-func (ix *Index) Update(items []export.Item, progress func(path string)) (int, error) {
+// many files were (re)indexed and which ones could not be read.
+func (ix *Index) Update(items []export.Item, progress func(path string)) (changed int, unreadable []Unreadable, err error) {
 	known, err := ix.files()
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	onDisk := map[string]bool{}
-	changed := 0
 	for _, it := range items {
 		onDisk[it.Path] = true
 		if s, ok := known[it.Path]; ok && s.Size == it.Size && s.MTime == it.ModTime {
@@ -147,18 +161,51 @@ func (ix *Index) Update(items []export.Item, progress func(path string)) (int, e
 			progress(it.Path)
 		}
 		if err := ix.indexFile(it); err != nil {
-			return changed, err
+			var pe *parseError
+			if !errors.As(err, &pe) {
+				return changed, unreadable, err
+			}
+			if err := ix.markUnreadable(it, pe.Error()); err != nil {
+				return changed, unreadable, err
+			}
+			unreadable = append(unreadable, Unreadable{Path: it.Path, Err: pe.Error()})
+			continue
 		}
 		changed++
 	}
 	for p := range known {
 		if !onDisk[p] {
 			if err := ix.forget(p); err != nil {
-				return changed, err
+				return changed, unreadable, err
 			}
 		}
 	}
-	return changed, nil
+	return changed, unreadable, nil
+}
+
+// parseError marks a file that exists but cannot be parsed as an export.
+type parseError struct{ err error }
+
+func (e *parseError) Error() string { return e.err.Error() }
+
+// markUnreadable records a file the index skipped, at its current state.
+func (ix *Index) markUnreadable(it export.Item, reason string) error {
+	tx, err := ix.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT INTO messages_fts(messages_fts, rowid, content) SELECT 'delete', id, content FROM messages WHERE file = ?`, it.Path); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM messages WHERE file = ?`, it.Path); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO files(path, size, mtime, guild_id, guild_name, channel_id, channel_name, dialect, message_count, error) VALUES (?,?,?,?,?,?,?,?,0,?)`,
+		it.Path, it.Size, it.ModTime, it.Guild.ID, it.Guild.Name, it.Channel.ID, it.Channel.Name, string(it.Dialect), reason); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (ix *Index) forget(path string) error {
@@ -182,6 +229,9 @@ func (ix *Index) forget(path string) error {
 func (ix *Index) indexFile(it export.Item) error {
 	h, msgs, err := export.Read(it.Path)
 	if err != nil {
+		if _, statErr := os.Stat(it.Path); statErr == nil {
+			return &parseError{err: err} // the file is there; its contents are the problem
+		}
 		return err
 	}
 	results := Messages(h, msgs)
@@ -196,7 +246,7 @@ func (ix *Index) indexFile(it export.Item) error {
 	if _, err := tx.Exec(`DELETE FROM messages WHERE file = ?`, it.Path); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`INSERT OR REPLACE INTO files(path, size, mtime, guild_id, guild_name, channel_id, channel_name, dialect, message_count) VALUES (?,?,?,?,?,?,?,?,?)`,
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO files(path, size, mtime, guild_id, guild_name, channel_id, channel_name, dialect, message_count, error) VALUES (?,?,?,?,?,?,?,?,?,'')`,
 		it.Path, it.Size, it.ModTime, h.Guild.ID, h.Guild.Name, h.Channel.ID, h.Channel.Name, string(h.Dialect), len(results)); err != nil {
 		return err
 	}
@@ -230,12 +280,34 @@ func (ix *Index) indexFile(it export.Item) error {
 	return tx.Commit()
 }
 
-// Stats reports what the index holds.
-func (ix *Index) Stats() (files int, messages int, err error) {
-	if err := ix.db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(message_count), 0) FROM files`).Scan(&files, &messages); err != nil {
-		return 0, 0, err
+// Stats reports what the index holds: readable files and their messages,
+// and the files it had to skip.
+func (ix *Index) Stats() (files int, messages int, unreadable int, err error) {
+	if err := ix.db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(message_count), 0) FROM files WHERE error = ''`).Scan(&files, &messages); err != nil {
+		return 0, 0, 0, err
 	}
-	return files, messages, nil
+	if err := ix.db.QueryRow(`SELECT COUNT(*) FROM files WHERE error != ''`).Scan(&unreadable); err != nil {
+		return 0, 0, 0, err
+	}
+	return files, messages, unreadable, nil
+}
+
+// UnreadableFiles lists the files the index skipped.
+func (ix *Index) UnreadableFiles() ([]Unreadable, error) {
+	rows, err := ix.db.Query(`SELECT path, error FROM files WHERE error != '' ORDER BY path`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Unreadable
+	for rows.Next() {
+		var u Unreadable
+		if err := rows.Scan(&u.Path, &u.Err); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
 }
 
 func isASCII(s string) bool {
