@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -213,6 +214,18 @@ func (a *app) cacheStatus() error {
 
 	if a.flags.JSON {
 		return term.WriteJSON(a.stdout(), st)
+	}
+	if a.flags.TSV {
+		// The lookup cache is the one part of this status already a table of
+		// several rows; the index summary is a single record, better read as
+		// JSON. See cols for the fields.
+		cols := []term.Column{{Header: "NAME"}, {Header: "AGE"}, {Header: "FETCHED_AT"}, {Header: "FRESH"}}
+		rows := make([][]string, len(st.Lookup))
+		for i, l := range st.Lookup {
+			rows[i] = []string{l.Name, l.Age, l.FetchedAt, strconv.FormatBool(l.Fresh)}
+		}
+		term.TSV(a.stdout(), cols, rows, a.flags.NoHeader)
+		return nil
 	}
 	w := a.stdout()
 	fmt.Fprintln(w, a.out.Bold("Search index"))

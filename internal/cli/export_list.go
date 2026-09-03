@@ -104,7 +104,7 @@ export time where the meta knows it. Nothing on disk exits 5.`,
 					string(it.Dialect), it.Location, shortDate(&it.LastExport), a.shortPath(it.Path),
 				})
 			}
-			term.Table(a.stdout(), a.out, []term.Column{
+			a.writeTable([]term.Column{
 				{Header: "GUILD"}, {Header: "CHANNEL"}, {Header: "MESSAGES", Right: true},
 				{Header: "FROM"}, {Header: "TO"}, {Header: "DIALECT"}, {Header: "LOCATION"}, {Header: "LAST EXPORT"}, {Header: "PATH"},
 			}, rows)
