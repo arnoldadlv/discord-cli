@@ -118,3 +118,18 @@ func Table(w io.Writer, style Style, cols []Column, rows [][]string) {
 		fmt.Fprintln(w, line(r, false))
 	}
 }
+
+// TSV writes rows as tab-separated values: no padding, since it is for a
+// pipeline rather than a person. noHeader suppresses the header row.
+func TSV(w io.Writer, cols []Column, rows [][]string, noHeader bool) {
+	if !noHeader {
+		headers := make([]string, len(cols))
+		for i, c := range cols {
+			headers[i] = c.Header
+		}
+		fmt.Fprintln(w, strings.Join(headers, "\t"))
+	}
+	for _, r := range rows {
+		fmt.Fprintln(w, strings.Join(r, "\t"))
+	}
+}
