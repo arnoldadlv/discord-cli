@@ -1,0 +1,21 @@
+{
+  "total_matches": 1,
+  "shown": 1,
+  "results": [
+    {
+      "guild": {
+        "id": "@me",
+        "name": "DM"
+      },
+      "channel": {
+        "id": "6001",
+        "name": "kyle"
+      },
+      "id": "5000001",
+      "author": "kyle",
+      "timestamp": "2026-08-01T10:01:00.000000+00:00",
+      "content": "message 1 about topic policy",
+      "file": "$HOME/.local/share/discord-cli/exports/dm/kyle.json"
+    }
+  ]
+}
