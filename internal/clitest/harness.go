@@ -275,6 +275,9 @@ type Runner struct {
 
 	// Terminal flags let a test pretend a stream is a TTY.
 	StdinTTY, StdoutTTY, StderrTTY bool
+
+	// Password is what an echo-off prompt returns when stdin is a terminal.
+	Password string
 }
 
 // NewRunner builds a runner with a fresh fake server and home, and a token
@@ -327,6 +330,7 @@ func (r *Runner) Run(args ...string) Result {
 		StdoutIsTerminal: r.StdoutTTY,
 		StderrIsTerminal: r.StderrTTY,
 		Sleep:            func(d time.Duration) { r.Sleeps = append(r.Sleeps, d) },
+		ReadPassword:     func() (string, error) { return r.Password, nil },
 		APIBaseURL:       r.Fake.URL(),
 		Now:              now,
 		Version:          "test",

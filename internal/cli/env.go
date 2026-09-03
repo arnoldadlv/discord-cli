@@ -24,6 +24,10 @@ type Env struct {
 	// Sleep is used for every rate-limit wait so tests can record delays.
 	Sleep func(time.Duration)
 
+	// ReadPassword reads a secret from the terminal with echo off. Only used
+	// when StdinIsTerminal; nil means prompting is impossible.
+	ReadPassword func() (string, error)
+
 	// APIBaseURL replaces Discord's API base; empty means the real one.
 	APIBaseURL string
 
