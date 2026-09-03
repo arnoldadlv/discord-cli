@@ -23,14 +23,14 @@ func inventoryRunner(t *testing.T) *clitest.Runner {
 	})
 	writeJSON(t, filepath.Join(r.Home.ExportsDir(), "dm", "kyle.json"), clitest.NativeExport("@me", "DM", "6001", "kyle", 1, clitest.Messages("6001", 3)))
 
-	legacy := filepath.Join(r.Home.LegacyExportsDir(), "cooey-coe")
+	legacy := filepath.Join(r.Home.NodeExportsDir(), "cooey-coe")
 	writeJSON(t, filepath.Join(legacy, "cmmc-general.json"), clitest.NativeExport("1001", "Cooey COE", "2003", "cmmc-general", 0, clitest.Messages("2003", 40)))
 	writeJSON(t, filepath.Join(legacy, ".meta.json"), map[string]any{
 		"channels":   map[string]any{"2003": map[string]any{"lastMessageId": clitest.MessageID(40), "lastExport": "2026-05-07T21:31:08.502Z", "messageCount": 40}},
 		"lastExport": "2026-05-07T21:31:08.502Z",
 	})
 
-	dce := r.Home.DCEExportsDir()
+	dce := r.Home.ChatExporterDir()
 	writeJSON(t, filepath.Join(dce, "cooey-coe", "Cooey COE - access-control [2020].json"), clitest.LegacyExport("1001", "Cooey COE", "2020", "access-control", 7))
 	writeJSON(t, filepath.Join(dce, "microsoft-azure", "Microsoft Azure - general [8001].json"), clitest.LegacyExport("8000", "Microsoft Azure", "8001", "general", 2))
 	// Not an export: must be ignored, not crash.
@@ -44,7 +44,7 @@ func TestExportListAllLocationsAndDialects(t *testing.T) {
 	if res.ExitCode != 0 {
 		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
 	}
-	for _, want := range []string{"Cooey COE", "🔮general", "cmmc-general", "access-control", "Microsoft Azure", "kyle", "DM", "native", "legacy", "12", "40", "2026-09-01", "2026-05-07"} {
+	for _, want := range []string{"Cooey COE", "🔮general", "cmmc-general", "access-control", "Microsoft Azure", "kyle", "DM", "native", "legacy", "node", "chatexporter", "12", "40", "2026-09-01", "2026-05-07"} {
 		if !strings.Contains(res.Stdout, want) {
 			t.Errorf("missing %q in\n%s", want, res.Stdout)
 		}
@@ -82,11 +82,11 @@ func TestExportListAllLocationsAndDialects(t *testing.T) {
 		t.Errorf("general: %+v", g)
 	}
 	c := j[byID["2003"]]
-	if c.Dialect != "native" || c.Location != "legacy" || c.MessageCount != 40 || c.LastExport == nil {
+	if c.Dialect != "native" || c.Location != "node" || c.MessageCount != 40 || c.LastExport == nil {
 		t.Errorf("cmmc: %+v", c)
 	}
 	d := j[byID["2020"]]
-	if d.Dialect != "legacy" || d.Location != "dce" || d.MessageCount != 7 || d.LastExport != nil || d.Guild.Name != "Cooey COE" {
+	if d.Dialect != "legacy" || d.Location != "chatexporter" || d.MessageCount != 7 || d.LastExport != nil || d.Guild.Name != "Cooey COE" {
 		t.Errorf("dce: %+v", d)
 	}
 	k := j[byID["6001"]]
@@ -167,7 +167,7 @@ func TestGuildShowReportsExportStatus(t *testing.T) {
 				t.Errorf("general: %+v", e)
 			}
 		case "2003":
-			if !e.Exported || e.Location != "legacy" || e.MessageCount != 40 {
+			if !e.Exported || e.Location != "node" || e.MessageCount != 40 {
 				t.Errorf("cmmc: %+v", e)
 			}
 		default:

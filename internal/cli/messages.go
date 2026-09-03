@@ -84,10 +84,7 @@ func (mw *messageWriter) write(m discord.Message) {
 			fmt.Fprintf(mw.w, "  %s %s\n", s.Dim("embed:"), s.Bold(e.Title))
 		}
 		if e.Description != "" {
-			d := htmlTag.ReplaceAllString(e.Description, "")
-			if len(d) > 300 {
-				d = d[:300] + "..."
-			}
+			d := discord.Truncate(htmlTag.ReplaceAllString(e.Description, ""), 300)
 			for _, line := range strings.Split(strings.TrimRight(d, "\n"), "\n") {
 				fmt.Fprintf(mw.w, "  %s %s\n", s.Dim("|"), line)
 			}

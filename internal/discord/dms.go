@@ -1,6 +1,9 @@
 package discord
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // DMChannel is a DM (type 1) or group DM (type 3).
 type DMChannel struct {
@@ -26,26 +29,15 @@ func (d DMChannel) DisplayName() string {
 		for _, r := range d.Recipients {
 			names = append(names, r.Username)
 		}
-		return joinNames(names)
+		if len(names) == 0 {
+			return "(empty group)"
+		}
+		return strings.Join(names, ", ")
 	}
 	if len(d.Recipients) > 0 {
 		return d.Recipients[0].Username
 	}
 	return d.ID
-}
-
-func joinNames(names []string) string {
-	out := ""
-	for i, n := range names {
-		if i > 0 {
-			out += ", "
-		}
-		out += n
-	}
-	if out == "" {
-		return "(empty group)"
-	}
-	return out
 }
 
 // DMs lists the account's DMs and group DMs.

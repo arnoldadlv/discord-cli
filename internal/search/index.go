@@ -238,6 +238,15 @@ func (ix *Index) Stats() (files int, messages int, err error) {
 	return files, messages, nil
 }
 
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
 // Search returns the matches within the given files, newest first, in the
 // same order Scan produces. Terms of three or more characters go through
 // the trigram index; every candidate is re-checked with the same matcher
@@ -266,7 +275,9 @@ func (ix *Index) Search(paths []string, q Query) ([]Result, error) {
 		where = append(where, `m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)`)
 		args = append(args, strings.Join(parts, " OR "))
 	}
-	if q.Author != "" {
+	if q.Author != "" && isASCII(q.Author) {
+		// SQLite's lower() folds ASCII only; a non-ASCII author is left to
+		// the Go re-check below so the index never misses what the scan finds.
 		where = append(where, `instr(lower(m.author), ?) > 0`)
 		args = append(args, q.Author)
 	}

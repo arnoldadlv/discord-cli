@@ -74,8 +74,8 @@ func Headers(token, timezone string) http.Header {
 
 // LocalTimezone finds the IANA name of the local time zone the way a browser
 // would report it: TZ first, then the /etc/localtime link, then UTC.
-func LocalTimezone() string {
-	if tz := os.Getenv("TZ"); tz != "" && tz != "Local" {
+func LocalTimezone(getenv func(string) string) string {
+	if tz := getenv("TZ"); tz != "" && tz != "Local" {
 		return tz
 	}
 	if link, err := os.Readlink("/etc/localtime"); err == nil {
