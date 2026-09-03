@@ -45,8 +45,8 @@ type Runner struct {
 	Locations []string // read locations, write location first
 	Meta      *MetaStore
 	Full      bool
-	// Progress, when set, is told about each page fetched.
-	Progress func(fetched int)
+	// Progress, when set, is told about each page fetched for a channel.
+	Progress func(channelID string, fetched int)
 }
 
 // Run exports one channel: find the existing export by id, fetch forwards
@@ -88,7 +88,7 @@ func (r *Runner) Run(ctx context.Context, t Target) (Result, error) {
 
 	fetched, err := r.Client.History(ctx, t.Channel.ID, after, func(_ []discord.Message, total int) {
 		if r.Progress != nil {
-			r.Progress(total)
+			r.Progress(t.Channel.ID, total)
 		}
 	})
 	if err != nil {

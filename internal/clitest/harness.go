@@ -60,6 +60,9 @@ type Handler func(r *http.Request) Response
 type FakeDiscord struct {
 	Server *httptest.Server
 
+	// Delay is added to every response, to make concurrency observable.
+	Delay time.Duration
+
 	mu          sync.Mutex
 	routes      map[string]Handler
 	queues      map[string][]Response
@@ -92,7 +95,8 @@ func (f *FakeDiscord) JSON(path string, body any) {
 	f.Handle(path, func(*http.Request) Response { return Response{Status: 200, Body: body} })
 }
 
-// Queue serves the given responses for path in order; the last one repeats.
+// Queue serves the given responses for path in order, then falls back to
+// the route registered with Handle or JSON.
 func (f *FakeDiscord) Queue(path string, responses ...Response) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -147,6 +151,8 @@ func (f *FakeDiscord) serve(w http.ResponseWriter, r *http.Request) {
 		resp = q[0]
 		if len(q) > 1 {
 			f.queues[r.URL.Path] = q[1:]
+		} else {
+			delete(f.queues, r.URL.Path)
 		}
 		found = true
 	} else if h, ok := f.routes[r.URL.Path]; ok {
@@ -166,8 +172,8 @@ func (f *FakeDiscord) serve(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"message":"404: Not Found","code":0}`))
 		return
 	}
-	if resp.Delay > 0 {
-		time.Sleep(resp.Delay)
+	if d := resp.Delay + f.Delay; d > 0 {
+		time.Sleep(d)
 	}
 	for k, vs := range resp.Header {
 		for _, v := range vs {

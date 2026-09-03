@@ -58,11 +58,7 @@ func (a *app) channelTarget(g discord.Guild, ch discord.Channel, parent *discord
 
 // exportOne runs one export and reports it.
 func (a *app) exportOne(ctx context.Context, runner *export.Runner, t export.Target, progressName string) (export.Result, error) {
-	if a.env.StderrIsTerminal {
-		runner.Progress = func(fetched int) {
-			fmt.Fprintf(a.stderr(), "\r  #%s: %d messages fetched...", progressName, fetched)
-		}
-	}
+	a.setupExportProgress(runner, map[string]string{t.Channel.ID: progressName})
 	res, err := runner.Run(ctx, t)
 	if a.env.StderrIsTerminal {
 		fmt.Fprint(a.stderr(), "\r\033[K")
