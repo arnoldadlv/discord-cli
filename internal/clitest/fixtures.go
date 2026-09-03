@@ -195,3 +195,56 @@ func atoi(s string) int {
 	}
 	return n
 }
+
+// ChannelsWithCollision is Channels plus a second channel that normalises
+// to "general", for the filename collision test.
+func ChannelsWithCollision() []map[string]any {
+	return append(Channels(), map[string]any{"id": "2011", "name": "✨general", "type": 0, "position": 9, "parent_id": "2000"})
+}
+
+// NativeExport builds a Node-CLI-shaped export envelope for a channel with
+// the given fixture messages.
+func NativeExport(guildID, guildName, channelID, channelName string, channelType int, msgs []map[string]any) map[string]any {
+	var after, before any
+	if len(msgs) > 0 {
+		after = msgs[0]["timestamp"]
+		before = msgs[len(msgs)-1]["timestamp"]
+	}
+	return map[string]any{
+		"guild":        map[string]any{"id": guildID, "name": guildName},
+		"channel":      map[string]any{"id": channelID, "name": channelName, "type": channelType},
+		"dateRange":    map[string]any{"after": after, "before": before},
+		"messages":     msgs,
+		"messageCount": len(msgs),
+	}
+}
+
+// LegacyExport builds a DiscordChatExporter-shaped export with n messages.
+func LegacyExport(guildID, guildName, channelID, channelName string, n int) map[string]any {
+	msgs := make([]map[string]any, n)
+	for i := range msgs {
+		ts := time.Date(2025, 3, 1, 9, 0, 0, 0, time.FixedZone("PDT", -7*3600)).Add(time.Duration(i) * time.Minute)
+		msgs[i] = map[string]any{
+			"id":                 fmt.Sprintf("%d", 4000000+i+1),
+			"type":               "Default",
+			"timestamp":          ts.Format("2006-01-02T15:04:05.000-07:00"),
+			"timestampEdited":    nil,
+			"callEndedTimestamp": nil,
+			"isPinned":           false,
+			"content":            fmt.Sprintf("legacy note %d about %s", i+1, []string{"policy", "evidence"}[i%2]),
+			"author": map[string]any{
+				"id": "9101", "name": "tim.h", "discriminator": "0000", "nickname": "Tim", "color": nil, "isBot": false,
+				"roles": []any{}, "avatarUrl": "https://cdn.example.test/a.png",
+			},
+			"attachments": []any{}, "embeds": []any{}, "stickers": []any{}, "reactions": []any{}, "mentions": []any{}, "inlineEmojis": []any{},
+		}
+	}
+	return map[string]any{
+		"guild":        map[string]any{"id": guildID, "name": guildName, "iconUrl": "https://cdn.example.test/icon.png"},
+		"channel":      map[string]any{"id": channelID, "type": "GuildTextChat", "categoryId": "2000", "category": "Text Channels", "name": channelName, "topic": nil},
+		"dateRange":    map[string]any{"after": nil, "before": nil},
+		"exportedAt":   "2025-03-02T00:00:00.000-07:00",
+		"messages":     msgs,
+		"messageCount": n,
+	}
+}
