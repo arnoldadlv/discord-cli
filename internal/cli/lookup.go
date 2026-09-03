@@ -126,3 +126,8 @@ func (a *app) resolveError(err error, listCmd string) error {
 	}
 	return err
 }
+
+// isNotFound reports whether a client error is a 403 or 404 from Discord.
+func isNotFound(err error, se **discord.StatusError) bool {
+	return errors.As(err, se) && ((*se).Status == 404 || (*se).Status == 403)
+}
