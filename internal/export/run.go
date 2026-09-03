@@ -64,9 +64,9 @@ func (r *Runner) Run(ctx context.Context, t Target) (Result, error) {
 			metaDir = t.MetaDir
 		}
 	}
-	if path == "" {
-		path = FileName(t.Dir, t.Channel.Name, t.Channel.ID)
-	}
+	// A new export gets its name only at write time, under the directory's
+	// lock, so two concurrent channels that normalise alike cannot both pick
+	// the same file (see write below).
 
 	after := ""
 	if !r.Full && existing != nil && existing.Dialect == Native {
@@ -100,6 +100,9 @@ func (r *Runner) Run(ctx context.Context, t Target) (Result, error) {
 			count = 0
 		}
 		return Result{Path: path, Status: StatusUpToDate, MessageCount: count}, nil
+	}
+	if path == "" {
+		path = FileName(t.Dir, t.Channel.Name, t.Channel.ID) // provisional, for error reports
 	}
 
 	var merged []json.RawMessage
@@ -138,7 +141,15 @@ func (r *Runner) Run(ctx context.Context, t Target) (Result, error) {
 		last := messageTimestamp(merged[len(merged)-1])
 		env.DateRange = DateRange{After: &first, Before: &last}
 	}
-	if err := Write(path, env); err != nil {
+	if existing == nil || existing.Dialect != Native {
+		unlock := r.Meta.lockDir(t.Dir)
+		path = FileName(t.Dir, t.Channel.Name, t.Channel.ID)
+		err = Write(path, env)
+		unlock()
+	} else {
+		err = Write(path, env)
+	}
+	if err != nil {
 		return Result{Path: path, Status: StatusFailed}, err
 	}
 	lastID := ""
@@ -200,15 +211,15 @@ func messageTimestamp(raw json.RawMessage) string {
 func newestID(msgs []json.RawMessage) string {
 	best := ""
 	for _, m := range msgs {
-		if id := messageID(m); compareIDs(id, best) > 0 {
+		if id := messageID(m); CompareIDs(id, best) > 0 {
 			best = id
 		}
 	}
 	return best
 }
 
-// compareIDs orders snowflakes numerically.
-func compareIDs(a, b string) int {
+// CompareIDs orders snowflake ids numerically.
+func CompareIDs(a, b string) int {
 	if len(a) != len(b) {
 		if len(a) < len(b) {
 			return -1
@@ -246,7 +257,7 @@ func sortMessages(msgs []json.RawMessage) {
 			}
 			return ks[i].t.Before(ks[j].t)
 		}
-		return compareIDs(ks[i].id, ks[j].id) < 0
+		return CompareIDs(ks[i].id, ks[j].id) < 0
 	})
 	for i := range ks {
 		msgs[i] = ks[i].m

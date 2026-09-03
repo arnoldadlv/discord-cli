@@ -2,7 +2,6 @@ package discord
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"strconv"
 )
@@ -35,8 +34,7 @@ func (c *Client) Threads(ctx context.Context, channelID string) ([]Channel, erro
 			var page threadSearchResponse
 			err := c.Get(ctx, "/channels/"+channelID+"/threads/search", q, &page)
 			if err != nil {
-				var se *StatusError
-				if errors.As(err, &se) && (se.Status == 403 || se.Status == 404) {
+				if IsNotFound(err) {
 					return all, nil
 				}
 				return nil, err

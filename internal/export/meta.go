@@ -73,6 +73,14 @@ func (s *MetaStore) lock(dir string) *sync.Mutex {
 	return l
 }
 
+// lockDir takes a directory's lock and returns the function that releases
+// it, for callers that must choose a file name and write it as one step.
+func (s *MetaStore) lockDir(dir string) func() {
+	l := s.lock(dir)
+	l.Lock()
+	return l.Unlock
+}
+
 // Get returns the meta entry of a channel in a directory.
 func (s *MetaStore) Get(dir, channelID string) (ChannelMeta, bool, error) {
 	l := s.lock(dir)

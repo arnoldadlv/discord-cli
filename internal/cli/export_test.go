@@ -222,7 +222,7 @@ func TestChannelExportUpToDateMakesOneRequest(t *testing.T) {
 
 func TestChannelExportFindsLegacyLocationByChannelID(t *testing.T) {
 	r, store := readRunner(t, 3)
-	legacyDir := filepath.Join(r.Home.LegacyExportsDir(), "cooey-coe")
+	legacyDir := filepath.Join(r.Home.NodeExportsDir(), "cooey-coe")
 	// The legacy export for #🔮general has 2 messages and, confusingly, is
 	// named general.json while cmmc-general.json also contains "general".
 	generalPath := filepath.Join(legacyDir, "general.json")
@@ -358,7 +358,7 @@ func reverse(msgs []map[string]any) []map[string]any {
 
 func TestChannelExportNeverWritesLegacyDialect(t *testing.T) {
 	r, _ := readRunner(t, 4)
-	dcePath := filepath.Join(r.Home.DCEExportsDir(), "cooey-coe", "Cooey COE - general [2001].json")
+	dcePath := filepath.Join(r.Home.ChatExporterDir(), "cooey-coe", "Cooey COE - general [2001].json")
 	writeJSON(t, dcePath, clitest.LegacyExport("1001", "Cooey COE", "2001", "general", 2))
 	dceBefore, _ := os.ReadFile(dcePath)
 	res := r.Run("channel", "export", "general")

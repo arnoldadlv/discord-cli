@@ -14,13 +14,25 @@ import (
 
 // exportResultJSON is the JSON for one exported channel, thread, or DM.
 type exportResultJSON struct {
-	Guild        namedJSON `json:"guild"`
-	Channel      namedJSON `json:"channel"`
-	Path         string    `json:"path"`
-	Status       string    `json:"status"`
-	MessageCount int       `json:"message_count"`
-	NewMessages  int       `json:"new_messages"`
-	Error        string    `json:"error,omitempty"`
+	Guild        namedJSON          `json:"guild"`
+	Channel      namedJSON          `json:"channel"`
+	Path         string             `json:"path"`
+	Status       string             `json:"status"`
+	MessageCount int                `json:"message_count"`
+	NewMessages  int                `json:"new_messages"`
+	Error        string             `json:"error,omitempty"`
+	Threads      []exportResultJSON `json:"threads,omitempty"` // channel export --threads
+}
+
+func toExportResultJSON(g discord.Guild, ch discord.Channel, res export.Result) exportResultJSON {
+	return exportResultJSON{
+		Guild:        namedJSON{ID: g.ID, Name: g.Name},
+		Channel:      namedJSON{ID: ch.ID, Name: ch.Name, Type: intPtr(ch.Type)},
+		Path:         res.Path,
+		Status:       string(res.Status),
+		MessageCount: res.MessageCount,
+		NewMessages:  res.NewMessages,
+	}
 }
 
 // exportRunner builds the export runner for this run.
@@ -67,14 +79,7 @@ func (a *app) exportOne(ctx context.Context, runner *export.Runner, t export.Tar
 
 func (a *app) printExportResult(g discord.Guild, ch discord.Channel, res export.Result) error {
 	if a.flags.JSON {
-		return term.WriteJSON(a.stdout(), exportResultJSON{
-			Guild:        namedJSON{ID: g.ID, Name: g.Name},
-			Channel:      namedJSON{ID: ch.ID, Name: ch.Name, Type: intPtr(ch.Type)},
-			Path:         res.Path,
-			Status:       string(res.Status),
-			MessageCount: res.MessageCount,
-			NewMessages:  res.NewMessages,
-		})
+		return term.WriteJSON(a.stdout(), toExportResultJSON(g, ch, res))
 	}
 	fmt.Fprintln(a.stdout(), a.exportLine(ch.Name, res))
 	return nil
@@ -127,10 +132,39 @@ func (a *app) channelExport(cmd *cobra.Command, guildFlag, channelInput string, 
 	if err != nil {
 		return a.apiError(err)
 	}
-	if res.Status == export.StatusExported {
+	out := toExportResultJSON(g, ch, res)
+	wrote := res.Status == export.StatusExported
+
+	// With --threads, a channel's own threads are exported too.
+	if withThreads && !discord.IsThread(ch.Type) {
+		c, _, err := a.client()
+		if err != nil {
+			return err
+		}
+		threads, err := c.Threads(ctx, ch.ID)
+		if err != nil {
+			return a.apiError(err)
+		}
+		for _, t := range threads {
+			tres, err := a.exportOne(ctx, runner, a.channelTarget(g, t, &ch), t.Name)
+			if err != nil {
+				return a.apiError(err)
+			}
+			wrote = wrote || tres.Status == export.StatusExported
+			out.Threads = append(out.Threads, toExportResultJSON(g, t, tres))
+		}
+	}
+	if wrote {
 		a.updateIndex()
 	}
-	return a.printExportResult(g, ch, res)
+	if a.flags.JSON {
+		return term.WriteJSON(a.stdout(), out)
+	}
+	fmt.Fprintln(a.stdout(), a.exportLine(ch.Name, res))
+	for _, t := range out.Threads {
+		fmt.Fprintln(a.stdout(), "  "+a.exportLine(t.Channel.Name, export.Result{Path: t.Path, Status: export.Status(t.Status), MessageCount: t.MessageCount, NewMessages: t.NewMessages}))
+	}
+	return nil
 }
 
 // dmTarget says where a DM's export goes: the dm directory beside the

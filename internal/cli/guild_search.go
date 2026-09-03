@@ -88,7 +88,7 @@ func (a *app) guildSearch(cmd *cobra.Command, guildFlag, query, channel, has str
 	}
 	opts := discord.SearchOptions{Content: query, Has: has, Limit: limit, Offset: offset}
 	if channel != "" {
-		ch, err := a.resolveChannel(ctx, g.ID, channel, true)
+		ch, err := a.resolveChannel(ctx, g.ID, channel, false)
 		if err != nil {
 			return err
 		}

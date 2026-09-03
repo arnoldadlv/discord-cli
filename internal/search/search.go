@@ -1,7 +1,7 @@
 // Package search is local search over exports on disk: a scan that reads
-// every export (the permanent fallback) and, later, a SQLite full-text
-// index derived from the same files (ADR-0006). Both produce the same
-// results in the same order.
+// every export (the permanent fallback) and a SQLite full-text index
+// derived from the same files (ADR-0006). Both produce the same results in
+// the same order.
 package search
 
 import (
@@ -68,6 +68,12 @@ func (q Query) Matches(r Result) bool {
 		return false
 	}
 	return true
+}
+
+// FromMessage builds a result with just what a query can filter on, for
+// callers that hold live messages rather than an export.
+func FromMessage(content, author, timestamp string) Result {
+	return Result{Content: content, Author: author, Timestamp: timestamp, time: ParseTime(timestamp)}
 }
 
 // rawMessage is the union of the fields both dialects carry.
@@ -148,25 +154,8 @@ func Sort(rs []Result) {
 			return rs[i].time.After(rs[j].time)
 		}
 		if rs[i].MessageID != rs[j].MessageID {
-			return CompareIDs(rs[i].MessageID, rs[j].MessageID) > 0
+			return export.CompareIDs(rs[i].MessageID, rs[j].MessageID) > 0
 		}
 		return rs[i].File < rs[j].File
 	})
-}
-
-// CompareIDs orders snowflakes numerically.
-func CompareIDs(a, b string) int {
-	if len(a) != len(b) {
-		if len(a) < len(b) {
-			return -1
-		}
-		return 1
-	}
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	}
-	return 0
 }

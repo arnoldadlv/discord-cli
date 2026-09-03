@@ -240,11 +240,11 @@ func (h *Home) ExportsDir() string { return filepath.Join(h.ToolDataDir(), "expo
 // ToolCacheDir is where the tool keeps its lookup cache and search index.
 func (h *Home) ToolCacheDir() string { return filepath.Join(h.CacheDir, "discord-cli") }
 
-// LegacyExportsDir is the Node CLI's export directory under this home.
-func (h *Home) LegacyExportsDir() string { return filepath.Join(h.Dir, ".discord-cli", "exports") }
+// NodeExportsDir is the Node CLI's export directory under this home.
+func (h *Home) NodeExportsDir() string { return filepath.Join(h.Dir, ".discord-cli", "exports") }
 
-// DCEExportsDir is the DiscordChatExporter folder under this home.
-func (h *Home) DCEExportsDir() string {
+// ChatExporterDir is the DiscordChatExporter folder under this home.
+func (h *Home) ChatExporterDir() string {
 	return filepath.Join(h.Dir, "DiscordChatExporter.Cli.osx-arm64", "exports")
 }
 
@@ -335,7 +335,7 @@ func (r *Runner) Run(args ...string) Result {
 		StdinIsTerminal:  r.StdinTTY,
 		StdoutIsTerminal: r.StdoutTTY,
 		StderrIsTerminal: r.StderrTTY,
-		Sleep:            func(d time.Duration) { r.Sleeps = append(r.Sleeps, d) },
+		Sleep:            func(_ context.Context, d time.Duration) { r.Sleeps = append(r.Sleeps, d) },
 		ReadPassword:     func() (string, error) { return r.Password, nil },
 		APIBaseURL:       r.Fake.URL(),
 		Now:              now,

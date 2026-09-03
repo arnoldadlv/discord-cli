@@ -80,6 +80,9 @@ func (a *app) authSet() error {
 		return fmt.Errorf("saving token: %w", err)
 	}
 	a.notice("Token stored in %s (mode 0600). Run 'discord auth status' to check it.", a.paths().TokenFile())
+	if a.flags.JSON {
+		return term.WriteJSON(a.stdout(), map[string]any{"stored": true, "path": a.paths().TokenFile()})
+	}
 	return nil
 }
 
