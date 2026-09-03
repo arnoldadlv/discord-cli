@@ -85,7 +85,7 @@ Global flags: `--json`, `--no-cache` (bypass the 24 hour guild, channel, and DM 
 
 ## Quick reference
 
-Read recent activity. Messages come oldest first as raw Discord objects with content, author, embeds, attachments, and reactions, plus the resolved guild and channel:
+Read recent activity, oldest first. The JSON is a compact projection of Discord's message, not the raw object: each message has `id`, `timestamp`, `edited`, `author` (`id` and `name` only), `content`, `reply_to` (the id of the message it replies to, if any), `mentions`, `attachments`, `embeds`, and `reactions`, plus the resolved guild and channel. Empty arrays are left out. Twenty messages land well under 10 KB, where the raw objects would run past 50 KB:
 
 ```bash
 discord channel read general --json
