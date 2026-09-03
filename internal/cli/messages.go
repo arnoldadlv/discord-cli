@@ -18,18 +18,114 @@ type namedJSON struct {
 	Type *int   `json:"type,omitempty"`
 }
 
-// messagesJSON is the JSON document for reads: the raw messages plus the
-// resolved names. Searches embed the same shape.
+// messagesJSON is the JSON document for channel reads: the compact messages
+// plus the resolved guild and channel.
 type messagesJSON struct {
-	Guild    namedJSON         `json:"guild"`
-	Channel  namedJSON         `json:"channel"`
-	Messages []json.RawMessage `json:"messages"`
+	Guild    namedJSON            `json:"guild"`
+	Channel  namedJSON            `json:"channel"`
+	Messages []compactMessageJSON `json:"messages"`
 }
 
 func rawMessages(ms []discord.Message) []json.RawMessage {
 	out := make([]json.RawMessage, 0, len(ms))
 	for _, m := range ms {
 		out = append(out, m.Raw)
+	}
+	return out
+}
+
+// compactAuthorJSON is a message author or mention: just enough to address
+// and label them, never the rest of the user object Discord sends.
+type compactAuthorJSON struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func toCompactAuthor(a discord.Author) compactAuthorJSON {
+	return compactAuthorJSON{ID: a.ID, Name: a.DisplayName()}
+}
+
+// compactAttachmentJSON is a message attachment, without Discord's internal id.
+type compactAttachmentJSON struct {
+	Filename string `json:"filename"`
+	URL      string `json:"url"`
+	Size     int64  `json:"size"`
+}
+
+// compactEmbedJSON is the part of an embed a reader needs: title, url, and
+// description, truncated the same way the human layout truncates them.
+// thumbnail, video, provider, placeholder, and content_scan_version never
+// parse into discord.Embed, so they are dropped for free.
+type compactEmbedJSON struct {
+	Title       string `json:"title,omitempty"`
+	URL         string `json:"url,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// compactReactionJSON is one emoji and its count. burst_colors,
+// count_details, and me_burst never parse into discord.Reaction, so they
+// are dropped for free.
+type compactReactionJSON struct {
+	Emoji string `json:"emoji"`
+	Count int    `json:"count"`
+}
+
+// compactMessageJSON is the message shape channel and DM reads emit: enough
+// for an agent to read and act on a conversation, without the full Discord
+// API object. Fidelity belongs to exports, not this shape.
+type compactMessageJSON struct {
+	ID          string                  `json:"id"`
+	Timestamp   string                  `json:"timestamp"`
+	Edited      bool                    `json:"edited"`
+	Author      compactAuthorJSON       `json:"author"`
+	Content     string                  `json:"content"`
+	ReplyTo     string                  `json:"reply_to,omitempty"`
+	Mentions    []compactAuthorJSON     `json:"mentions,omitempty"`
+	Attachments []compactAttachmentJSON `json:"attachments,omitempty"`
+	Embeds      []compactEmbedJSON      `json:"embeds,omitempty"`
+	Reactions   []compactReactionJSON   `json:"reactions,omitempty"`
+}
+
+// embedDescription is an embed's description as the human layout shows it:
+// HTML tags stripped, then truncated to 300 runes.
+func embedDescription(e discord.Embed) string {
+	if e.Description == "" {
+		return ""
+	}
+	return discord.Truncate(htmlTag.ReplaceAllString(e.Description, ""), 300)
+}
+
+// toCompactMessage projects one raw API message onto the compact shape.
+func toCompactMessage(m discord.Message) compactMessageJSON {
+	c := compactMessageJSON{
+		ID:        m.ID,
+		Timestamp: m.Timestamp,
+		Edited:    m.Edited(),
+		Author:    toCompactAuthor(m.Author),
+		Content:   m.Content,
+		ReplyTo:   m.ReplyTo(),
+	}
+	for _, u := range m.Mentions {
+		c.Mentions = append(c.Mentions, toCompactAuthor(u))
+	}
+	for _, att := range m.Attachments {
+		c.Attachments = append(c.Attachments, compactAttachmentJSON{Filename: att.Filename, URL: att.URL, Size: att.Size})
+	}
+	for _, e := range m.Embeds {
+		c.Embeds = append(c.Embeds, compactEmbedJSON{Title: e.Title, URL: e.URL, Description: embedDescription(e)})
+	}
+	for _, r := range m.Reactions {
+		c.Reactions = append(c.Reactions, compactReactionJSON{Emoji: r.Emoji.Name, Count: r.Count})
+	}
+	return c
+}
+
+// compactMessages projects messages onto the compact shape that channel and
+// DM reads emit as --json.
+func compactMessages(ms []discord.Message) []compactMessageJSON {
+	out := make([]compactMessageJSON, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, toCompactMessage(m))
 	}
 	return out
 }
@@ -83,8 +179,7 @@ func (mw *messageWriter) write(m discord.Message) {
 		if e.Title != "" {
 			fmt.Fprintf(mw.w, "  %s %s\n", s.Dim("embed:"), s.Bold(e.Title))
 		}
-		if e.Description != "" {
-			d := discord.Truncate(htmlTag.ReplaceAllString(e.Description, ""), 300)
+		if d := embedDescription(e); d != "" {
 			for _, line := range strings.Split(strings.TrimRight(d, "\n"), "\n") {
 				fmt.Fprintf(mw.w, "  %s %s\n", s.Dim("|"), line)
 			}

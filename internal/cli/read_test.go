@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,6 +112,35 @@ func TestChannelReadRendersAttachmentsEmbedsReactions(t *testing.T) {
 	}
 }
 
+// compactMessageJSON mirrors the shape channel and DM reads emit as --json,
+// for tests that decode it.
+type compactMessageJSON struct {
+	ID        string `json:"id"`
+	Timestamp string `json:"timestamp"`
+	Edited    bool   `json:"edited"`
+	Author    struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"author"`
+	Content     string                      `json:"content"`
+	ReplyTo     string                      `json:"reply_to"`
+	Mentions    []struct{ ID, Name string } `json:"mentions"`
+	Attachments []struct {
+		Filename string `json:"filename"`
+		URL      string `json:"url"`
+		Size     int64  `json:"size"`
+	} `json:"attachments"`
+	Embeds []struct {
+		Title       string `json:"title"`
+		URL         string `json:"url"`
+		Description string `json:"description"`
+	} `json:"embeds"`
+	Reactions []struct {
+		Emoji string `json:"emoji"`
+		Count int    `json:"count"`
+	} `json:"reactions"`
+}
+
 func TestChannelReadJSONShapeSnapshot(t *testing.T) {
 	r, _ := readRunner(t, 5)
 	res := r.Run("channel", "read", "general", "--json")
@@ -132,24 +160,177 @@ func TestChannelReadJSONShapeSnapshot(t *testing.T) {
 	if string(want) != res.Stdout {
 		t.Errorf("JSON shape changed; diff against %s:\n%s", golden, res.Stdout)
 	}
+	// The golden file must not regress into Discord's raw message object:
+	// none of the fields this shape drops should reappear.
+	for _, dropped := range []string{"avatar_decoration_data", "display_name_styles", "referenced_message", "proxy_url", "burst_colors", "count_details", "channel_id", "mention_everyone"} {
+		if strings.Contains(res.Stdout, dropped) {
+			t.Errorf("compact shape leaked raw field %q", dropped)
+		}
+	}
 	var j struct {
 		Guild   struct{ ID, Name string }
 		Channel struct {
 			ID, Name string
 			Type     int
 		}
-		Messages []json.RawMessage
+		Messages []compactMessageJSON
 	}
 	res.JSON(t, &j)
 	if j.Guild.Name != "Cooey COE" || j.Channel.Name != "🔮general" || j.Channel.Type != 0 || len(j.Messages) != 5 {
 		t.Errorf("%+v", j)
 	}
-	var raw map[string]any
-	if err := json.Unmarshal(j.Messages[1], &raw); err != nil {
-		t.Fatal(err)
+	if j.Messages[0].Author.ID != "9002" || j.Messages[0].Author.Name != "Kyle B" {
+		t.Errorf("author not projected to id+name: %+v", j.Messages[0].Author)
 	}
-	if raw["timestamp"] != "2026-08-01T10:02:00.000000+00:00" || raw["attachments"] == nil {
-		t.Errorf("raw message altered: %v", raw)
+	if len(j.Messages[0].Attachments) != 1 || j.Messages[0].Attachments[0].Filename != "report.pdf" || j.Messages[0].Attachments[0].URL != "https://cdn.example.test/report.pdf" || j.Messages[0].Attachments[0].Size != 1234 {
+		t.Errorf("attachment: %+v", j.Messages[0].Attachments)
+	}
+	if len(j.Messages[1].Embeds) != 1 || j.Messages[1].Embeds[0].Title != "Weekly digest" || j.Messages[1].Embeds[0].Description != "Three things happened this week." || j.Messages[1].Embeds[0].URL != "https://news.example.test/digest" {
+		t.Errorf("embed: %+v", j.Messages[1].Embeds)
+	}
+	if strings.Contains(j.Messages[1].Embeds[0].Description, "<b>") {
+		t.Errorf("embed description html not stripped: %q", j.Messages[1].Embeds[0].Description)
+	}
+	if len(j.Messages[2].Reactions) != 2 || j.Messages[2].Reactions[0].Emoji != "👍" || j.Messages[2].Reactions[0].Count != 3 {
+		t.Errorf("reactions: %+v", j.Messages[2].Reactions)
+	}
+	for i, m := range j.Messages {
+		if m.Edited {
+			t.Errorf("message %d: none of these fixtures are edited", i)
+		}
+		if len(m.Mentions) != 0 || m.ReplyTo != "" {
+			t.Errorf("message %d: none of these fixtures mention or reply", i)
+		}
+	}
+	if len(j.Messages[3].Attachments) != 0 || len(j.Messages[3].Embeds) != 0 || len(j.Messages[3].Reactions) != 0 {
+		t.Errorf("plain message should omit empty arrays entirely: %+v", j.Messages[3])
+	}
+}
+
+// TestChannelReadJSONUnder10KBFor20Messages pins the size win this shape
+// exists for: the raw API objects measured 59 KB for 20 messages.
+func TestChannelReadJSONUnder10KBFor20Messages(t *testing.T) {
+	r, _ := readRunner(t, 20)
+	res := r.Run("channel", "read", "general", "--limit", "20", "--json")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	if n := len(res.Stdout); n >= 10*1024 {
+		t.Errorf("20 messages serialised to %d bytes, want under 10 KB", n)
+	}
+	var j struct {
+		Messages []compactMessageJSON `json:"messages"`
+	}
+	res.JSON(t, &j)
+	if len(j.Messages) != 20 {
+		t.Fatalf("got %d messages, want 20", len(j.Messages))
+	}
+}
+
+// TestChannelReadJSONMentionsReplyAndEdited exercises the fields the
+// fixture pool never sets: a reply, mentions, and an edited message. These
+// are not shown by the human renderer, but the compact shape reads them for
+// an agent that wants to follow a thread or know a message changed.
+func TestChannelReadJSONMentionsReplyAndEdited(t *testing.T) {
+	r := channelRunner(t)
+	edited := "2026-08-01T10:09:00.000000+00:00"
+	msgs := []map[string]any{
+		{
+			"id": clitest.MessageID(1), "channel_id": "2001", "type": 0,
+			"author":           map[string]any{"id": "9001", "username": "ana", "global_name": "Ana", "discriminator": "0"},
+			"content":          "welcome!",
+			"timestamp":        "2026-08-01T10:01:00.000000+00:00",
+			"edited_timestamp": nil,
+			"attachments":      []any{}, "embeds": []any{}, "mentions": []any{},
+		},
+		{
+			"id": clitest.MessageID(2), "channel_id": "2001", "type": 0,
+			"author":            map[string]any{"id": "9002", "username": "kyle", "global_name": "Kyle B", "discriminator": "0"},
+			"content":           "thanks <@9001>, will do",
+			"timestamp":         edited,
+			"edited_timestamp":  edited,
+			"message_reference": map[string]any{"type": 0, "channel_id": "2001", "message_id": clitest.MessageID(1)},
+			"mentions":          []map[string]any{{"id": "9001", "username": "ana", "global_name": "Ana", "discriminator": "0"}},
+			"attachments":       []any{}, "embeds": []any{},
+		},
+	}
+	clitest.ServeMessages(r.Fake, "2001", msgs)
+	res := r.Run("channel", "read", "general", "--json")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	var j struct {
+		Messages []compactMessageJSON `json:"messages"`
+	}
+	res.JSON(t, &j)
+	if len(j.Messages) != 2 {
+		t.Fatalf("want 2 messages, got %d", len(j.Messages))
+	}
+	if j.Messages[0].Edited || j.Messages[0].ReplyTo != "" || len(j.Messages[0].Mentions) != 0 {
+		t.Errorf("first message should be plain: %+v", j.Messages[0])
+	}
+	reply := j.Messages[1]
+	if !reply.Edited {
+		t.Errorf("edited_timestamp set but edited is false: %+v", reply)
+	}
+	if reply.ReplyTo != clitest.MessageID(1) {
+		t.Errorf("reply_to = %q, want %q", reply.ReplyTo, clitest.MessageID(1))
+	}
+	if len(reply.Mentions) != 1 || reply.Mentions[0].ID != "9001" || reply.Mentions[0].Name != "Ana" {
+		t.Errorf("mentions: %+v", reply.Mentions)
+	}
+	if strings.Contains(res.Stdout, "referenced_message") {
+		t.Errorf("reply_to must be a plain id, not an inlined referenced_message:\n%s", res.Stdout)
+	}
+}
+
+// TestChannelReadHumanAndJSONShowSameFields walks both renderers over the
+// same fixtures: every field the human layout prints must also be findable
+// in the JSON, so an agent using --json never loses information a person
+// reading the terminal would see.
+func TestChannelReadHumanAndJSONShowSameFields(t *testing.T) {
+	r, _ := readRunner(t, 5)
+	human := r.Run("channel", "read", "general")
+	if human.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", human.ExitCode, human.Stderr)
+	}
+	var j struct {
+		Messages []compactMessageJSON `json:"messages"`
+	}
+	r.Run("channel", "read", "general", "--json").JSON(t, &j)
+
+	// What the human layout shows for these 5 fixture messages: author,
+	// content, attachment name and url, embed title/description/url, and
+	// each reaction's emoji and count (see TestChannelReadRendersAttachmentsEmbedsReactions).
+	authorNames := map[string]bool{}
+	for _, m := range j.Messages {
+		authorNames[m.Author.Name] = true
+		if !strings.Contains(human.Stdout, m.Author.Name) {
+			t.Errorf("human output missing author %q", m.Author.Name)
+		}
+		if m.Content != "" && !strings.Contains(human.Stdout, m.Content) {
+			t.Errorf("human output missing content %q", m.Content)
+		}
+		for _, a := range m.Attachments {
+			if !strings.Contains(human.Stdout, a.Filename) || !strings.Contains(human.Stdout, a.URL) {
+				t.Errorf("human output missing attachment %+v", a)
+			}
+		}
+		for _, e := range m.Embeds {
+			if !strings.Contains(human.Stdout, e.Title) || !strings.Contains(human.Stdout, e.Description) || !strings.Contains(human.Stdout, e.URL) {
+				t.Errorf("human output missing embed %+v", e)
+			}
+		}
+		for _, react := range m.Reactions {
+			if !strings.Contains(human.Stdout, react.Emoji) {
+				t.Errorf("human output missing reaction %+v", react)
+			}
+		}
+	}
+	for _, want := range []string{"Ana", "Kyle B", "newsbot"} {
+		if !authorNames[want] {
+			t.Errorf("JSON never carried author %q that the human layout shows", want)
+		}
 	}
 }
 
