@@ -163,7 +163,29 @@ name is accepted too.`,
 	addGuildFlag(read, &readGuild)
 	read.Flags().BoolVar(&readThreads, "threads", false, "allow a thread name or id as the channel")
 	read.Flags().IntVarP(&readLimit, "limit", "n", 25, "number of messages to show")
-	return []*cobra.Command{list, read}
+
+	var exGuild string
+	var exThreads, exFull bool
+	exp := &cobra.Command{
+		Use:   "export <channel>",
+		Short: "Export one channel to a local JSON file, incrementally",
+		Long: `Export one channel to a JSON file in the data directory, under the guild's
+normalised name. Runs are incremental: an existing export is found by the
+channel's id in any of the read locations and only newer messages are
+fetched and merged. --full refetches everything. Exports are written to a
+temporary file and renamed, so a crash never leaves a half-written file.`,
+		Example: `  discord channel export general
+  discord channel export news --full
+  discord channel export "welcome thread" --threads`,
+		Args: exactOnePositional("channel"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.channelExport(cmd, exGuild, args[0], exThreads, exFull)
+		},
+	}
+	addGuildFlag(exp, &exGuild)
+	exp.Flags().BoolVar(&exThreads, "threads", false, "allow a thread name or id as the channel")
+	exp.Flags().BoolVar(&exFull, "full", false, "ignore the export meta and refetch every message")
+	return []*cobra.Command{list, read, exp}
 }
 
 func (a *app) channelRead(cmd *cobra.Command, guildFlag, channelInput string, withThreads bool, limit int) error {

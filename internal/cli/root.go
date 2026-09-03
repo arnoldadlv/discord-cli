@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
+	"github.com/arnoldadlv/discord-cli/internal/export"
 	"github.com/arnoldadlv/discord-cli/internal/store"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
@@ -40,6 +41,7 @@ type app struct {
 
 	api         *discord.Client
 	tokenSource store.TokenSource
+	metaStore   *export.MetaStore
 }
 
 func (a *app) stdout() io.Writer { return a.env.Stdout }
