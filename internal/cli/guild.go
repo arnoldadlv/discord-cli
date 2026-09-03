@@ -58,7 +58,31 @@ func (a *app) guildCommands() []*cobra.Command {
 		},
 	}
 	addGuildFlag(show, &showGuild)
-	return []*cobra.Command{list, show}
+
+	var exGuild string
+	var exThreads, exFull bool
+	var exConcurrency int
+	exp := &cobra.Command{
+		Use:   "export",
+		Short: "Export every text, announcement, and forum channel of a guild",
+		Long: `Export every text, announcement, and forum channel of a guild, several at a
+time, incrementally. --threads also exports each channel's active and
+archived threads as their own files under threads/<channel>/. The export
+meta is written after each channel completes, so a run you kill keeps its
+finished channels and the next run resumes from them.`,
+		Example: `  discord guild export
+  discord guild export --guild "My Guild" --threads
+  discord guild export --concurrency 2 --full`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.guildExport(cmd, exGuild, exThreads, exFull, exConcurrency)
+		},
+	}
+	addGuildFlag(exp, &exGuild)
+	exp.Flags().BoolVar(&exThreads, "threads", false, "also export active and archived threads")
+	exp.Flags().BoolVar(&exFull, "full", false, "ignore the export meta and refetch every message")
+	exp.Flags().IntVar(&exConcurrency, "concurrency", 4, "how many channels to export at once")
+	return []*cobra.Command{list, show, exp}
 }
 
 type guildShowJSON struct {
