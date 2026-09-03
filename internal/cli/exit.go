@@ -66,10 +66,13 @@ func humanError(err error) string {
 	msg := strings.TrimRight(err.Error(), "\n")
 	lines := strings.Split(msg, "\n")
 	for i, l := range lines {
-		if i == 0 {
+		switch {
+		case i == 0:
 			lines[i] = "discord: " + l
-		} else {
-			lines[i] = "  " + l
+		case strings.TrimSpace(l) == "":
+			lines[i] = ""
+		default:
+			lines[i] = "  " + strings.TrimLeft(l, "\t")
 		}
 	}
 	return strings.Join(lines, "\n") + "\n"
