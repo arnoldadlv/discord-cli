@@ -84,18 +84,27 @@ func TestAmbiguousNormalisedListsCandidates(t *testing.T) {
 	}
 }
 
-func TestAliasesMatchTooForGroupDMs(t *testing.T) {
+func TestPrimaryNameBeatsAliasForGroupDMs(t *testing.T) {
 	cands := []Candidate{
-		{ID: "d1", Name: "kyle"},
-		{ID: "d2", Name: "Study Group", Aliases: []string{"kyle", "ana"}},
+		{ID: "d1", Name: "kyle", AlsoNames: []string{"Kyle B"}},
+		{ID: "d2", Name: "Study Group", Aliases: []string{"kyle", "Kyle B", "ana"}},
+		{ID: "d3", Name: "ana, maria", Aliases: []string{"ana", "maria"}},
 	}
-	_, err := Match("DM", "kyle", cands)
+	got, err := Match("DM", "kyle", cands)
+	if err != nil || got.ID != "d1" {
+		t.Errorf("kyle should be the DM, got %v %v", got, err)
+	}
+	got, err = Match("DM", "kyle b", cands)
+	if err != nil || got.ID != "d1" {
+		t.Errorf("display name should be the DM, got %v %v", got, err)
+	}
+	got, err = Match("DM", "maria", cands)
+	if err != nil || got.ID != "d3" {
+		t.Errorf("maria: %v %v", got, err)
+	}
+	_, err = Match("DM", "ana", cands)
 	var amb *AmbiguousError
-	if !errors.As(err, &amb) {
-		t.Errorf("kyle should be ambiguous between DM and group, got %v", err)
-	}
-	got, err := Match("DM", "ana", cands)
-	if err != nil || got.ID != "d2" {
-		t.Errorf("ana: %v %v", got, err)
+	if !errors.As(err, &amb) || len(amb.Candidates) != 2 {
+		t.Errorf("ana should be ambiguous between two groups, got %v", err)
 	}
 }
