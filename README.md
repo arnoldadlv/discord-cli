@@ -137,7 +137,7 @@ If the index is missing or out of date, local search still works by scanning the
 
 ## A tour of the commands
 
-Commands are noun then verb. Every command accepts `--json`, and progress and errors go to stderr so stdout is only ever the answer.
+Commands are noun then verb. Every command accepts `--format`: `human` (the default), `json` (the same as `--json`), `compact` (one message per line, for `channel read`, `dm read`, `export search`, `guild search`, and `message read`), or `tsv` (for `guild list`, `channel list`, `dm list`, `export list`, and `cache status`, with a header row `--no-header` removes). Compact content is truncated at `--width` characters, 200 by default, 0 to turn that off. Progress and errors always go to stderr, so stdout is only ever the answer.
 
 See what you have access to:
 
