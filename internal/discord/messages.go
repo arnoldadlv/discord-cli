@@ -14,14 +14,38 @@ import (
 type Message struct {
 	Raw json.RawMessage `json:"-"`
 
-	ID          string       `json:"id"`
-	ChannelID   string       `json:"channel_id"`
-	Content     string       `json:"content"`
-	Timestamp   string       `json:"timestamp"`
-	Author      Author       `json:"author"`
-	Attachments []Attachment `json:"attachments"`
-	Embeds      []Embed      `json:"embeds"`
-	Reactions   []Reaction   `json:"reactions"`
+	ID              string            `json:"id"`
+	ChannelID       string            `json:"channel_id"`
+	Content         string            `json:"content"`
+	Timestamp       string            `json:"timestamp"`
+	EditedTimestamp *string           `json:"edited_timestamp,omitempty"`
+	Author          Author            `json:"author"`
+	Mentions        []Author          `json:"mentions,omitempty"`
+	Reference       *MessageReference `json:"message_reference,omitempty"`
+	Attachments     []Attachment      `json:"attachments"`
+	Embeds          []Embed           `json:"embeds"`
+	Reactions       []Reaction        `json:"reactions"`
+}
+
+// MessageReference points at the message this one replies to. Discord also
+// sends the full referenced_message alongside it; the tool only keeps the
+// id, since that is the address and the message stays fetchable by it.
+type MessageReference struct {
+	MessageID string `json:"message_id"`
+}
+
+// Edited reports whether the message has been edited since it was sent.
+func (m Message) Edited() bool {
+	return m.EditedTimestamp != nil
+}
+
+// ReplyTo is the id of the message this one replies to, or "" if it is not
+// a reply.
+func (m Message) ReplyTo() string {
+	if m.Reference == nil {
+		return ""
+	}
+	return m.Reference.MessageID
 }
 
 // Author is the part of a message author the tool uses.

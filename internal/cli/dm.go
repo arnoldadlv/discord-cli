@@ -183,11 +183,11 @@ exports. Runs are incremental, found by the DM's id; --full refetches.`,
 	return []*cobra.Command{list, read, search, exp}
 }
 
-// dmMessagesJSON is the JSON for DM reads: the same shape as channel reads
-// without a guild.
+// dmMessagesJSON is the JSON for DM reads: the same compact shape as
+// channel reads, without a guild.
 type dmMessagesJSON struct {
-	Channel  namedJSON         `json:"channel"`
-	Messages []json.RawMessage `json:"messages"`
+	Channel  namedJSON            `json:"channel"`
+	Messages []compactMessageJSON `json:"messages"`
 }
 
 func (a *app) dmRead(cmd *cobra.Command, input string, limit int) error {
@@ -210,7 +210,7 @@ func (a *app) dmRead(cmd *cobra.Command, input string, limit int) error {
 	if a.flags.JSON {
 		return term.WriteJSON(a.stdout(), dmMessagesJSON{
 			Channel:  namedJSON{ID: d.ID, Name: d.DisplayName(), Type: intPtr(d.Type)},
-			Messages: rawMessages(ms),
+			Messages: compactMessages(ms),
 		})
 	}
 	if len(ms) == 0 {

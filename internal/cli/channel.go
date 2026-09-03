@@ -221,7 +221,7 @@ func (a *app) channelRead(cmd *cobra.Command, guildFlag, channelInput string, wi
 		return term.WriteJSON(a.stdout(), messagesJSON{
 			Guild:    namedJSON{ID: g.ID, Name: g.Name},
 			Channel:  namedJSON{ID: ch.ID, Name: ch.Name, Type: intPtr(ch.Type)},
-			Messages: rawMessages(ms),
+			Messages: compactMessages(ms),
 		})
 	}
 	if len(ms) == 0 {
