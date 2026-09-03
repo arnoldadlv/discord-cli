@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
+	"github.com/arnoldadlv/discord-cli/internal/export"
 )
 
 // namedJSON is a resolved guild or channel in JSON output.
@@ -84,6 +85,10 @@ type compactMessageJSON struct {
 	Attachments []compactAttachmentJSON `json:"attachments,omitempty"`
 	Embeds      []compactEmbedJSON      `json:"embeds,omitempty"`
 	Reactions   []compactReactionJSON   `json:"reactions,omitempty"`
+	// Match marks the one message a read was asked for, when the others are
+	// only there for context. Reads that were not asked for a single message
+	// leave it out.
+	Match bool `json:"match,omitempty"`
 }
 
 // embedDescription is an embed's description as the human layout shows it:
@@ -130,6 +135,108 @@ func compactMessages(ms []discord.Message) []compactMessageJSON {
 	return out
 }
 
+// legacyMessage is a message as DiscordChatExporter stores it. Legacy
+// exports are the one place a stored message is not a raw API object, so
+// their fields are mapped onto the ones the compact shape needs.
+type legacyMessage struct {
+	ID              string  `json:"id"`
+	Content         string  `json:"content"`
+	Timestamp       string  `json:"timestamp"`
+	TimestampEdited *string `json:"timestampEdited"`
+	Author          struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Nickname string `json:"nickname"`
+	} `json:"author"`
+	Reference *struct {
+		MessageID string `json:"messageId"`
+	} `json:"reference"`
+	Mentions []struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Nickname string `json:"nickname"`
+	} `json:"mentions"`
+	Attachments []struct {
+		FileName      string `json:"fileName"`
+		FileSizeBytes int64  `json:"fileSizeBytes"`
+		URL           string `json:"url"`
+	} `json:"attachments"`
+	Embeds []struct {
+		Title       string `json:"title"`
+		URL         string `json:"url"`
+		Description string `json:"description"`
+	} `json:"embeds"`
+	Reactions []struct {
+		Emoji struct {
+			Name string `json:"name"`
+		} `json:"emoji"`
+		Count int `json:"count"`
+	} `json:"reactions"`
+}
+
+// author is the legacy author as an API one: the guild nickname is the
+// display name, the handle is the username, which is how local search names
+// legacy authors too.
+func legacyAuthor(id, name, nickname string) discord.Author {
+	return discord.Author{ID: id, Username: name, GlobalName: nickname}
+}
+
+// storedMessage parses one message out of an export. Native exports hold
+// the raw API object, so it parses straight into a message; legacy ones
+// hold DiscordChatExporter's shape and are mapped onto the same fields.
+func storedMessage(dialect export.Dialect, raw json.RawMessage) (discord.Message, bool) {
+	if dialect != export.Legacy {
+		var m discord.Message
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return discord.Message{}, false
+		}
+		return m, true
+	}
+	var l legacyMessage
+	if err := json.Unmarshal(raw, &l); err != nil {
+		return discord.Message{}, false
+	}
+	m := discord.Message{
+		Raw:             append(json.RawMessage(nil), raw...),
+		ID:              l.ID,
+		Content:         l.Content,
+		Timestamp:       l.Timestamp,
+		EditedTimestamp: l.TimestampEdited,
+		Author:          legacyAuthor(l.Author.ID, l.Author.Name, l.Author.Nickname),
+	}
+	if l.Reference != nil && l.Reference.MessageID != "" {
+		m.Reference = &discord.MessageReference{MessageID: l.Reference.MessageID}
+	}
+	for _, u := range l.Mentions {
+		m.Mentions = append(m.Mentions, legacyAuthor(u.ID, u.Name, u.Nickname))
+	}
+	for _, att := range l.Attachments {
+		m.Attachments = append(m.Attachments, discord.Attachment{Filename: att.FileName, Size: att.FileSizeBytes, URL: att.URL})
+	}
+	for _, e := range l.Embeds {
+		m.Embeds = append(m.Embeds, discord.Embed{Title: e.Title, URL: e.URL, Description: e.Description})
+	}
+	for _, r := range l.Reactions {
+		var rr discord.Reaction
+		rr.Count = r.Count
+		rr.Emoji.Name = r.Emoji.Name
+		m.Reactions = append(m.Reactions, rr)
+	}
+	return m, true
+}
+
+// storedMessageID reads only the id of a stored message, so finding one in
+// a large export does not parse every message in it.
+func storedMessageID(raw json.RawMessage) string {
+	var probe struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return ""
+	}
+	return probe.ID
+}
+
 func intPtr(i int) *int { return &i }
 
 var htmlTag = regexp.MustCompile(`<[^>]+>`)
@@ -140,6 +247,7 @@ type messageWriter struct {
 	w        io.Writer
 	loc      *time.Location
 	channels map[string]string // channel id -> name, for search results
+	mark     string            // message id to point at with a leading >
 }
 
 func (a *app) messageWriter() *messageWriter {
@@ -159,6 +267,9 @@ func (mw *messageWriter) timestamp(m discord.Message) string {
 func (mw *messageWriter) write(m discord.Message) {
 	s := mw.a.out
 	head := s.Dim(mw.timestamp(m)) + "  " + s.Bold(m.Author.DisplayName())
+	if mw.mark != "" && m.ID == mw.mark {
+		head = "> " + head
+	}
 	if mw.channels != nil {
 		if name, ok := mw.channels[m.ChannelID]; ok {
 			head += "  " + s.Cyan("#"+name)

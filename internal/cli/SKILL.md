@@ -36,7 +36,7 @@ Find the default guild with `discord config get --json`. If `default-guild` is e
 discord <noun> <verb> [argument] [flags]
 ```
 
-Nouns: `guild`, `channel`, `dm`, `export`, `auth`, `config`, `cache`. Each command takes at most one positional argument (a channel or DM name, or a search query). Flags work in any order. `--help` works anywhere. Abbreviated command names are not accepted.
+Nouns: `guild`, `channel`, `dm`, `message`, `export`, `auth`, `config`, `cache`. Each command takes at most one positional argument (a channel or DM name, or a search query). Flags work in any order. `--help` works anywhere. Abbreviated command names are not accepted.
 
 **Always pass `--json`.** Every command supports it, its field names are stable, and human output may change. Progress, notices, and errors go to stderr; stdout is only ever the answer.
 
@@ -50,7 +50,7 @@ Branch on the code, not on error text.
 | 1 | Unexpected error (network, timeout, a failed channel inside a guild export) | Read stderr; retry once for a timeout |
 | 2 | Usage error (bad flag, missing argument, no guild and no default guild) | Fix the command; for "no guild" add `--guild <name>` |
 | 3 | Authentication failed (no token, rejected token, bot token) | Stop and ask the user to run `discord auth set` |
-| 4 | Guild, channel, or DM not found, or not visible to the account | stderr carries "Did you mean: ..."; pick one and retry |
+| 4 | Guild, channel, DM, or message not found, or not visible to the account | stderr carries "Did you mean: ..."; pick one and retry. For a message id in no export, add `--channel` |
 | 5 | No exports on disk | Run an export first |
 | 6 | Rate limit exhausted | Wait a minute; lower `--concurrency` for exports |
 
@@ -75,6 +75,7 @@ DMs are named by the other person's username or display name; group DMs by their
 | `dm read <dm>` | Recent messages of a DM | `--limit` |
 | `dm search <dm> --query <text>` | Search one DM by fetching its history | `--query`, `--after`, `--before`, `--limit` |
 | `dm export <dm>` | Export a DM | `--full` |
+| `message read <id>` | One message by id, with the messages around it | `--context`, `--channel`, `--guild` |
 | `export list` | Every export on disk, all locations | `--guild` |
 | `export search <query>` | Search exports on disk, unlimited | `--guild` or `--all`, `--author`, `--after`, `--before`, `--limit` |
 | `auth set` / `auth status` | Store and check the token | |
@@ -91,6 +92,14 @@ Read recent activity, oldest first. The JSON is a compact projection of Discord'
 discord channel read general --json
 discord channel read news --limit 5 --json
 discord dm read someone --limit 10 --json
+```
+
+Read one message by its id, the id every search hit carries. The id is looked up in the search index first, so a message already in an export comes back from disk with no network call, whichever guild, channel, or DM it is in. `--context N` adds the N messages either side, oldest first, and the message asked for carries `"match": true` (in human output, a leading `>` on its timestamp line). Fewer come back at the start or end of a channel. When no export holds the id there is nothing to look up, so `--channel` says where to fetch it from, and without it the command exits 4:
+
+```bash
+discord message read <id from a search hit> --json
+discord message read <id from a search hit> --context 5 --json
+discord message read <id from a search hit> --channel general --json
 ```
 
 Search live, newest first. Limits above 25 are paged automatically. `--has` takes image, video, sound, file, embed, link, sticker, or poll. The JSON has `total_results`, `messages`, and `channel_names`:
@@ -132,6 +141,13 @@ discord dm export someone --json
 
 ## Patterns
 
+Search, then read. A search returns an address, the `id` of every hit; the read expands one address into the conversation around it. Reach for this pair whenever a hit is worth more than its own line:
+
+```bash
+discord export search "onboarding" --guild my-guild --json
+discord message read <id from a search hit> --context 5 --json
+```
+
 Research a topic: live first for what Discord indexes today, then local for depth.
 
 ```bash
@@ -169,7 +185,7 @@ Exports use the DiscordChatExporter envelope (`guild`, `channel`, `dateRange`, `
 
 ## Tips
 
-1. `channel read` for recent activity with full embeds; `guild search` to find by keyword live; `export search` for unlimited, repeatable research.
+1. `channel read` for recent activity with full embeds; `guild search` to find by keyword live; `export search` for unlimited, repeatable research; `message read` to open up one hit.
 2. Emoji prefixes are optional in names; the id always works.
 3. Exit 3: stop and ask the user about the token. Exit 4: read the suggestions. Exit 5: export first. Exit 6: wait, do not loop.
 4. `--threads` on `channel list`, `channel read`, `channel export`, and `guild export` includes active and archived threads.

@@ -92,6 +92,7 @@ DMs, live search, and local exports you can search without limits.
   guild     list, show, search, export
   channel   list, read, export
   dm        list, read, search, export
+  message   read
   export    list, search
   auth      set, status
   config    set, get
@@ -102,6 +103,7 @@ DMs, live search, and local exports you can search without limits.
   discord config set default-guild "My Guild"
   discord channel read general --limit 10
   discord guild search "access control" --json
+  discord message read 1542961568172740660 --context 5
 
 Run 'discord --help' for every flag, or 'discord help <noun> [<verb>]'.
 Report problems at ` + RepoURL + `
@@ -119,7 +121,7 @@ Commands are noun then verb: discord <noun> <verb> [flags]. Every command
 accepts --json for stable machine output; progress and errors go to stderr.
 
 Exit codes: 0 success, 1 unexpected error, 2 usage error, 3 authentication
-failed, 4 guild, channel, or DM not found, 5 no exports found, 6 rate limit
+failed, 4 guild, channel, DM, or message not found, 5 no exports found, 6 rate limit
 exhausted.
 
 Report problems at ` + RepoURL,
@@ -128,6 +130,7 @@ Report problems at ` + RepoURL,
   discord guild list
   discord channel read general --limit 10
   discord guild search "access control" --json
+  discord message read 1542961568172740660 --context 5
   discord guild export --threads
   discord export search "policy" --all --author kyle`,
 		SilenceUsage:  true,
@@ -253,6 +256,7 @@ func (a *app) nouns() []*cobra.Command {
 		with(a.noun("guild", "List, show, search, and export guilds"), a.guildCommands()...),
 		with(a.noun("channel", "List, read, and export channels and threads"), a.channelCommands()...),
 		with(a.noun("dm", "List, read, search, and export direct messages"), a.dmCommands()...),
+		with(a.noun("message", "Read one message by id, with the messages around it"), a.messageCommands()...),
 		with(a.noun("export", "List and search the exports on disk"), a.exportListCommand(), a.exportSearchCommand()),
 		with(a.noun("auth", "Store and check the user token"), a.authCommands()...),
 		with(a.noun("config", "Set and get configuration such as the default guild"), a.configCommands()...),

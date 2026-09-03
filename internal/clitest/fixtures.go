@@ -115,8 +115,9 @@ func Messages(channelID string, n int) []map[string]any {
 }
 
 // ServeMessages registers the channel messages endpoint with Discord's
-// semantics: newest first, limit, and before/after as exclusive id bounds.
-// The store is returned so a test can append messages between runs.
+// semantics: newest first, limit, before/after as exclusive id bounds, and
+// around as a window centred on a message. The store is returned so a test
+// can append messages between runs.
 func ServeMessages(f *FakeDiscord, channelID string, msgs []map[string]any) *MessageStore {
 	s := &MessageStore{msgs: msgs}
 	f.Handle("/channels/"+channelID+"/messages", func(req *http.Request) Response {
@@ -125,12 +126,15 @@ func ServeMessages(f *FakeDiscord, channelID string, msgs []map[string]any) *Mes
 		if l := q.Get("limit"); l != "" {
 			limit = atoi(l)
 		}
-		before, after := q.Get("before"), q.Get("after")
-		if before != "" && after != "" {
-			return Response{Status: 400, Body: `{"message":"before and after together","code":50035}`}
+		before, after, around := q.Get("before"), q.Get("after"), q.Get("around")
+		if (before != "" && after != "") || (around != "" && (before != "" || after != "")) {
+			return Response{Status: 400, Body: `{"message":"before, after, and around are exclusive","code":50035}`}
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if around != "" {
+			return Response{Status: 200, Body: nonNil(s.around(around, limit))}
+		}
 		var pick []map[string]any
 		if after != "" {
 			// Oldest first above the bound, then take the oldest limit and return newest first.
@@ -169,6 +173,31 @@ func ServeMessages(f *FakeDiscord, channelID string, msgs []map[string]any) *Mes
 type MessageStore struct {
 	mu   sync.Mutex
 	msgs []map[string]any
+}
+
+// around returns the window of messages centred on a message id, newest
+// first, as Discord's around parameter does: half the limit either side,
+// fewer at the ends of the channel. An unknown id matches nothing. The
+// caller holds the lock.
+func (s *MessageStore) around(id string, limit int) []map[string]any {
+	at := -1
+	for i, m := range s.msgs {
+		if m["id"].(string) == id {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return nil
+	}
+	half := (limit - 1) / 2
+	lo := max(at-half, 0)
+	hi := min(at+half, len(s.msgs)-1)
+	out := make([]map[string]any, 0, hi-lo+1)
+	for i := hi; i >= lo; i-- { // newest first
+		out = append(out, s.msgs[i])
+	}
+	return out
 }
 
 // Append adds messages (oldest first) after the existing ones.
