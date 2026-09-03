@@ -174,6 +174,21 @@ func (a *app) noun(use, short string) *cobra.Command {
 	return c
 }
 
+// exactOnePositional validates the single positional every command with a
+// primary object takes, with a usage error naming it.
+func exactOnePositional(name string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		switch len(args) {
+		case 1:
+			return nil
+		case 0:
+			return UsageError("missing the %s argument", name).WithHint("Usage: %s", cmd.UseLine())
+		default:
+			return UsageError("too many arguments: %s", strings.Join(args, " ")).WithHint("Usage: %s", cmd.UseLine())
+		}
+	}
+}
+
 func unknownVerb(cmd *cobra.Command, verb string) error {
 	msg := fmt.Sprintf("unknown command %q for %q", verb, cmd.CommandPath())
 	if s := cmd.SuggestionsFor(verb); len(s) > 0 {
