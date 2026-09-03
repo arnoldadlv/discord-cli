@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +22,12 @@ import (
 
 // RepoURL is where problems are reported.
 const RepoURL = "https://github.com/arnoldadlv/discord-cli"
+
+// skillMarkdown is the agent skill shipped inside the binary, printed by
+// `discord help --skill` so it always matches the installed version.
+//
+//go:embed SKILL.md
+var skillMarkdown string
 
 // globalFlags are registered on the root and read by every command.
 type globalFlags struct {
@@ -146,6 +153,7 @@ Report problems at ` + RepoURL,
 		return UsageError("%s", err.Error()).WithHint("Run '%s --help' for usage.", cmd.CommandPath())
 	})
 	root.CompletionOptions.DisableDefaultCmd = true
+	root.SetHelpCommand(a.helpCommand(root))
 
 	pf := root.PersistentFlags()
 	pf.BoolVar(&a.flags.JSON, "json", false, "emit JSON on stdout instead of human output")
@@ -157,6 +165,39 @@ Report problems at ` + RepoURL,
 		root.AddCommand(n)
 	}
 	return root
+}
+
+// helpCommand is Cobra's help command plus --skill, which prints the agent
+// skill that ships inside the binary.
+func (a *app) helpCommand(root *cobra.Command) *cobra.Command {
+	var skill bool
+	c := &cobra.Command{
+		Use:   "help [<noun> [<verb>]]",
+		Short: "Help about any command, or the agent skill with --skill",
+		Long: `Help about any command. With --skill, print the agent skill (a SKILL.md
+that matches this version) so an agent can install it:
+
+  mkdir -p ~/.claude/skills/discord-cli
+  discord help --skill > ~/.claude/skills/discord-cli/SKILL.md`,
+		Args: cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if skill {
+				if len(args) > 0 {
+					return UsageError("--skill prints the whole skill and takes no command").WithHint("Run 'discord help --skill'.")
+				}
+				_, err := io.WriteString(cmd.OutOrStdout(), skillMarkdown)
+				return err
+			}
+			target, _, err := root.Find(args)
+			if err != nil || target == nil {
+				return UsageError("unknown help topic %q", strings.Join(args, " ")).WithHint("Run 'discord help' for the command list.")
+			}
+			target.InitDefaultHelpFlag()
+			return target.Help()
+		},
+	}
+	c.Flags().BoolVar(&skill, "skill", false, "print the agent skill (SKILL.md) for this version")
+	return c
 }
 
 // noun builds a command that groups verbs; on its own it prints help, and an
