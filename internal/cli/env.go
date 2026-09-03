@@ -2,7 +2,10 @@ package cli
 
 import (
 	"io"
+	"sync"
 	"time"
+
+	"github.com/arnoldadlv/discord-cli/internal/discord"
 )
 
 // Env is everything the tool touches outside its own process, so tests can
@@ -22,7 +25,8 @@ type Env struct {
 	StderrIsTerminal bool
 
 	// Sleep is used for every rate-limit wait so tests can record delays.
-	Sleep func(time.Duration)
+	// The production sleeper returns early when the context is cancelled.
+	Sleep discord.SleepFunc
 
 	// ReadPassword reads a secret from the terminal with echo off. Only used
 	// when StdinIsTerminal; nil means prompting is impossible.
@@ -38,12 +42,27 @@ type Env struct {
 	Version string
 }
 
+// syncWriter serialises writes from concurrent export workers, so progress
+// lines and notices never interleave mid-line.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
+}
+
 func (e *Env) defaults() {
+	e.Stdout = &syncWriter{w: e.Stdout}
+	e.Stderr = &syncWriter{w: e.Stderr}
 	if e.Getenv == nil {
 		e.Getenv = func(string) string { return "" }
 	}
 	if e.Sleep == nil {
-		e.Sleep = time.Sleep
+		e.Sleep = discord.ContextSleep
 	}
 	if e.Now == nil {
 		e.Now = time.Now

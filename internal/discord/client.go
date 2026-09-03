@@ -14,14 +14,19 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // DefaultBaseURL is Discord's v10 API.
 const DefaultBaseURL = "https://discord.com/api/v10"
 
+// MaxAttempts is how many times one request is tried before a rate limit
+// counts as exhausted.
+const MaxAttempts = 5
+
 const (
-	maxAttempts      = 5
 	resetBuffer      = time.Second
 	maxAdvisorySleep = 60 * time.Second
 )
@@ -56,36 +61,56 @@ func (e *TimeoutError) Error() string {
 	return fmt.Sprintf("request to %s timed out after %s", e.Path, e.Timeout)
 }
 
-// Client talks to Discord as the user's own account.
+// SleepFunc waits for d or until ctx is done, whichever comes first.
+type SleepFunc func(ctx context.Context, d time.Duration)
+
+// ContextSleep is the production sleeper: Ctrl-C cuts a wait short.
+func ContextSleep(ctx context.Context, d time.Duration) {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+	case <-t.C:
+	}
+}
+
+// Client talks to Discord as the user's own account. It is safe for use
+// from several goroutines.
 type Client struct {
 	BaseURL  string
 	Token    string
 	Timezone string
 	Timeout  time.Duration
-	Sleep    func(time.Duration)
+	Sleep    SleepFunc
 	// Notice, when set, receives one-line progress notes such as rate-limit waits.
 	Notice func(string)
 
-	http    *http.Client
+	http *http.Client
+
+	mu      sync.Mutex // guards the one-time token check below
 	user    *User
+	userErr error
 	checked bool
 }
 
-// New builds a client. Timeout is per request; Sleep is used for every wait.
-func New(baseURL, token string, timeout time.Duration, sleep func(time.Duration)) *Client {
+// New builds a client. Timeout is per request; sleep is used for every wait.
+func New(baseURL, token, timezone string, timeout time.Duration, sleep SleepFunc) *Client {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
 	}
 	if sleep == nil {
-		sleep = time.Sleep
+		sleep = ContextSleep
 	}
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
+	if timezone == "" {
+		timezone = "UTC"
+	}
 	return &Client{
 		BaseURL:  strings.TrimRight(baseURL, "/"),
 		Token:    token,
-		Timezone: LocalTimezone(),
+		Timezone: timezone,
 		Timeout:  timeout,
 		Sleep:    sleep,
 		http:     &http.Client{Timeout: timeout},
@@ -100,17 +125,25 @@ type User struct {
 	Bot        bool   `json:"bot"`
 }
 
-// CurrentUser fetches /users/@me once and rejects bot accounts.
+// CurrentUser fetches /users/@me once per run and rejects bot accounts.
+// Concurrent callers share the one probe; a rejected token stays rejected.
 func (c *Client) CurrentUser(ctx context.Context) (*User, error) {
-	if c.user != nil {
-		return c.user, nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.checked {
+		return c.user, c.userErr
 	}
 	var u User
 	if err := c.get(ctx, "/users/@me", nil, &u); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, err // not a verdict on the token; try again next call
+		}
+		c.checked, c.userErr = true, err
 		return nil, err
 	}
 	c.checked = true
 	if u.Bot {
+		c.userErr = ErrBotToken
 		return nil, ErrBotToken
 	}
 	c.user = &u
@@ -119,10 +152,8 @@ func (c *Client) CurrentUser(ctx context.Context) (*User, error) {
 
 // Get performs one GET, checking the token kind first on the run's first call.
 func (c *Client) Get(ctx context.Context, path string, query url.Values, out any) error {
-	if !c.checked {
-		if _, err := c.CurrentUser(ctx); err != nil {
-			return err
-		}
+	if _, err := c.CurrentUser(ctx); err != nil {
+		return err
 	}
 	return c.get(ctx, path, query, out)
 }
@@ -132,7 +163,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
+	for attempt := 1; attempt <= MaxAttempts; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 		if err != nil {
 			return err
@@ -157,20 +188,23 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 
 		if resp.StatusCode == http.StatusTooManyRequests {
 			wait := retryAfter(body, resp.Header)
-			if attempt == maxAttempts {
+			if attempt == MaxAttempts {
 				break
 			}
 			if c.Notice != nil {
 				c.Notice(fmt.Sprintf("Rate limited, waiting %.1fs...", wait.Seconds()))
 			}
-			c.Sleep(wait)
+			c.Sleep(ctx, wait)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			continue
 		}
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			return &StatusError{Status: resp.StatusCode, Path: path, Message: apiMessage(body)}
 		}
 
-		c.honorAdvisory(resp.Header)
+		c.honorAdvisory(ctx, resp.Header)
 
 		if out != nil && len(strings.TrimSpace(string(body))) > 0 {
 			if err := json.Unmarshal(body, out); err != nil {
@@ -200,7 +234,7 @@ func retryAfter(body []byte, h http.Header) time.Duration {
 
 // honorAdvisory sleeps out the bucket when the last request used it up:
 // reset-after plus one second, capped at 60 seconds, like DiscordChatExporter.
-func (c *Client) honorAdvisory(h http.Header) {
+func (c *Client) honorAdvisory(ctx context.Context, h http.Header) {
 	if h.Get("X-RateLimit-Remaining") != "0" {
 		return
 	}
@@ -209,7 +243,7 @@ func (c *Client) honorAdvisory(h http.Header) {
 		return
 	}
 	wait := time.Duration(math.Min(f+resetBuffer.Seconds(), maxAdvisorySleep.Seconds()) * float64(time.Second))
-	c.Sleep(wait)
+	c.Sleep(ctx, wait)
 }
 
 func apiMessage(body []byte) string {
@@ -219,11 +253,16 @@ func apiMessage(body []byte) string {
 	if err := json.Unmarshal(body, &b); err == nil && b.Message != "" {
 		return b.Message
 	}
-	s := strings.TrimSpace(string(body))
-	if len(s) > 200 {
-		s = s[:200] + "..."
+	return Truncate(strings.TrimSpace(string(body)), 200)
+}
+
+// Truncate shortens s to at most n runes, never cutting a rune in half.
+func Truncate(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
 	}
-	return s
+	runes := []rune(s)
+	return string(runes[:n]) + "..."
 }
 
 // DisplayName is the user's display name, else the handle.

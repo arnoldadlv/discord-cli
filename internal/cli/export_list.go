@@ -53,7 +53,7 @@ func (a *app) inventory(guild string) ([]export.Item, error) {
 	all := a.allExports()
 	if len(all) == 0 {
 		return nil, Errorf(ExitNoExports, "no exports found in %s, %s, or %s",
-			a.paths().ExportsDir(), a.paths().LegacyExportsDir(), a.paths().DCEExportsDir()).
+			a.paths().ExportsDir(), a.paths().NodeExportsDir(), a.paths().ChatExporterDir()).
 			WithHint("Run 'discord guild export' or 'discord channel export <channel>' to create one.")
 	}
 	if guild == "" {
@@ -101,12 +101,12 @@ export time where the meta knows it. Nothing on disk exits 5.`,
 				rows = append(rows, []string{
 					it.Guild.Name, it.Channel.Name, strconv.Itoa(max(it.MessageCount, 0)),
 					shortDate(it.DateRange.After), shortDate(it.DateRange.Before),
-					string(it.Dialect), shortDate(&it.LastExport), a.shortPath(it.Path),
+					string(it.Dialect), it.Location, shortDate(&it.LastExport), a.shortPath(it.Path),
 				})
 			}
 			term.Table(a.stdout(), a.out, []term.Column{
 				{Header: "GUILD"}, {Header: "CHANNEL"}, {Header: "MESSAGES", Right: true},
-				{Header: "FROM"}, {Header: "TO"}, {Header: "DIALECT"}, {Header: "LAST EXPORT"}, {Header: "PATH"},
+				{Header: "FROM"}, {Header: "TO"}, {Header: "DIALECT"}, {Header: "LOCATION"}, {Header: "LAST EXPORT"}, {Header: "PATH"},
 			}, rows)
 			return nil
 		},

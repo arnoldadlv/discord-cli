@@ -42,17 +42,18 @@ func (p Paths) ConfigFile() string { return filepath.Join(p.ConfigDir, "config.j
 // ExportsDir is where new exports are written.
 func (p Paths) ExportsDir() string { return filepath.Join(p.DataDir, "exports") }
 
-// LegacyExportsDir is the Node CLI's export directory, read only.
-func (p Paths) LegacyExportsDir() string { return filepath.Join(p.Home, ".discord-cli", "exports") }
+// NodeExportsDir is the Node CLI's export directory. Its native exports are
+// read and updated in place; nothing new is created there.
+func (p Paths) NodeExportsDir() string { return filepath.Join(p.Home, ".discord-cli", "exports") }
 
-// DCEExportsDir is the DiscordChatExporter folder, read only.
-func (p Paths) DCEExportsDir() string {
+// ChatExporterDir is the DiscordChatExporter folder: legacy exports, read only.
+func (p Paths) ChatExporterDir() string {
 	return filepath.Join(p.Home, "DiscordChatExporter.Cli.osx-arm64", "exports")
 }
 
 // ReadLocations are every place exports are read from, in precedence order.
 func (p Paths) ReadLocations() []string {
-	return []string{p.ExportsDir(), p.LegacyExportsDir(), p.DCEExportsDir()}
+	return []string{p.ExportsDir(), p.NodeExportsDir(), p.ChatExporterDir()}
 }
 
 // LookupCacheDir holds the cached guild, channel, and DM lists.

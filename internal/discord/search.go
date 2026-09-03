@@ -2,7 +2,6 @@ package discord
 
 import (
 	"context"
-	"encoding/json"
 	"net/url"
 	"strconv"
 )
@@ -28,12 +27,9 @@ type SearchResult struct {
 }
 
 type searchResponse struct {
-	TotalResults int             `json:"total_results"`
-	Messages     [][]Message     `json:"messages"`
-	Message      string          `json:"message"`
-	Code         json.Number     `json:"code"`
-	RetryAfter   json.Number     `json:"retry_after"`
-	Raw          json.RawMessage `json:"-"`
+	TotalResults int         `json:"total_results"`
+	Messages     [][]Message `json:"messages"`
+	Message      string      `json:"message"` // set on a 202 "not indexed yet" answer
 }
 
 // Search runs Discord's guild message search sorted by timestamp descending,

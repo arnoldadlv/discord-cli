@@ -99,8 +99,7 @@ func (a *app) resolveGuild(ctx context.Context, input string) (discord.Guild, er
 	}
 	g, err := c.Guild(ctx, m.ID)
 	if err != nil {
-		var se *discord.StatusError
-		if errors.As(err, &se) && (se.Status == 404 || se.Status == 403) {
+		if discord.IsNotFound(err) {
 			return discord.Guild{}, Errorf(ExitNotFound, "guild %q not found", input).WithHint("Run 'discord guild list' to see the guilds this account belongs to.")
 		}
 		return discord.Guild{}, a.apiError(err)
@@ -125,9 +124,4 @@ func (a *app) resolveError(err error, listCmd string) error {
 		return Errorf(ExitNotFound, "%s", amb.Error()).WithHint("Use the id to pick one.")
 	}
 	return err
-}
-
-// isNotFound reports whether a client error is a 403 or 404 from Discord.
-func isNotFound(err error, se **discord.StatusError) bool {
-	return errors.As(err, se) && ((*se).Status == 404 || (*se).Status == 403)
 }

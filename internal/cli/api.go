@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
 	"github.com/arnoldadlv/discord-cli/internal/store"
@@ -40,7 +39,7 @@ func (a *app) client() (*discord.Client, store.TokenSource, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	c := discord.New(a.env.APIBaseURL, tok, a.flags.Timeout, a.env.Sleep)
+	c := discord.New(a.env.APIBaseURL, tok, discord.LocalTimezone(a.env.Getenv), a.flags.Timeout, a.env.Sleep)
 	if a.env.StderrIsTerminal {
 		c.Notice = func(s string) { a.notice("%s", s) }
 	}
@@ -65,7 +64,7 @@ func (a *app) apiError(err error) error {
 		return Errorf(ExitAuth, "%s", err.Error()).WithHint("Store the token of your own account with 'discord auth set'.")
 	}
 	if errors.Is(err, discord.ErrRateLimitExhausted) {
-		return Errorf(ExitRateLimited, "Discord kept rate limiting this request; gave up after five attempts").
+		return Errorf(ExitRateLimited, "Discord kept rate limiting this request; gave up after %d attempts", discord.MaxAttempts).
 			WithHint("Wait a minute before trying again, and lower --concurrency for exports.")
 	}
 	var te *discord.TimeoutError
@@ -79,12 +78,16 @@ func (a *app) apiError(err error) error {
 			return Errorf(ExitAuth, "Discord rejected the token (401 Unauthorized)").
 				WithHint("Run 'discord auth set' with a fresh user token. Changing your Discord password invalidates old tokens.")
 		case 403:
-			return Errorf(ExitAuth, "Discord refused the request (403 Forbidden): %s", se.Message).
-				WithHint("The account cannot see this resource, or the token is not a user token.")
+			if se.Path == "/users/@me" {
+				return Errorf(ExitAuth, "Discord refused the token (403 Forbidden): %s", se.Message).
+					WithHint("Run 'discord auth set' with a fresh user token.")
+			}
+			return Errorf(ExitNotFound, "the account cannot see this (403 Forbidden): %s", se.Message).
+				WithHint("Check the name or id; the channel may be private to you.")
 		case 404:
 			return Errorf(ExitNotFound, "Discord has no such resource (404): %s", se.Message)
 		}
 		return Errorf(ExitUnexpected, "%s", se.Error())
 	}
-	return fmt.Errorf("%w", err)
+	return err
 }

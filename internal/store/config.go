@@ -53,16 +53,6 @@ func (c Config) Get(key string) (string, bool) {
 	return "", false
 }
 
-// Set assigns a key.
-func (c *Config) Set(key, value string) bool {
-	switch key {
-	case "default-guild":
-		c.DefaultGuild = value
-		return true
-	}
-	return false
-}
-
 // WriteFileAtomic writes to a temporary file in the same directory and
 // renames it into place, so a crash never leaves a half-written file.
 func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
@@ -76,6 +66,11 @@ func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
 	}
 	tmpName := tmp.Name()
 	cleanup := func() { _ = os.Remove(tmpName) }
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		cleanup()
+		return err
+	}
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		cleanup()

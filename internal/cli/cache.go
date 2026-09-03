@@ -12,6 +12,7 @@ import (
 
 	"github.com/arnoldadlv/discord-cli/internal/export"
 	"github.com/arnoldadlv/discord-cli/internal/search"
+	"github.com/arnoldadlv/discord-cli/internal/store"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
 
@@ -168,7 +169,7 @@ func (a *app) cacheStatus() error {
 			Name:      name,
 			Age:       age.Round(time.Second).String(),
 			FetchedAt: a.env.Now().Add(-age).UTC().Format(time.RFC3339),
-			Fresh:     age < 24*time.Hour,
+			Fresh:     age < store.LookupTTL,
 		})
 	}
 	sort.Slice(st.Lookup, func(i, j int) bool { return st.Lookup[i].Name < st.Lookup[j].Name })
@@ -234,7 +235,7 @@ func (a *app) cacheRebuild() error {
 	if a.flags.JSON {
 		return term.WriteJSON(a.stdout(), map[string]any{"files_indexed": n, "message_count": msgs, "path": p.IndexFile()})
 	}
-	a.notice("Indexed %s, %s, into %s", plural(n, "file"), plural(msgs, "message"), a.shortPath(p.IndexFile()))
+	fmt.Fprintf(a.stdout(), "Indexed %s, %s, into %s\n", plural(n, "file"), plural(msgs, "message"), a.shortPath(p.IndexFile()))
 	return nil
 }
 
@@ -245,6 +246,9 @@ func (a *app) cacheClear() error {
 	}
 	if err := a.lookupCache().Clear(); err != nil {
 		return err
+	}
+	if a.flags.JSON {
+		return term.WriteJSON(a.stdout(), map[string]any{"cleared": true, "index": p.IndexFile(), "lookup_cache": p.LookupCacheDir()})
 	}
 	a.notice("Removed the search index and lookup cache under %s. Exports, configuration, and the token were not touched.", a.shortPath(filepath.Dir(p.IndexFile())))
 	return nil
