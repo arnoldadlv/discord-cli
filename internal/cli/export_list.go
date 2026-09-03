@@ -50,7 +50,7 @@ func toExportItemJSON(it export.Item) exportItemJSON {
 
 // inventory lists the exports on disk, narrowed to one guild when given.
 func (a *app) inventory(guild string) ([]export.Item, error) {
-	all := export.Inventory(a.paths().ReadLocations())
+	all := a.allExports()
 	if len(all) == 0 {
 		return nil, Errorf(ExitNoExports, "no exports found in %s, %s, or %s",
 			a.paths().ExportsDir(), a.paths().LegacyExportsDir(), a.paths().DCEExportsDir()).
