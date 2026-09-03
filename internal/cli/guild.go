@@ -82,7 +82,7 @@ finished channels and the next run resumes from them.`,
 	exp.Flags().BoolVar(&exThreads, "threads", false, "also export active and archived threads")
 	exp.Flags().BoolVar(&exFull, "full", false, "ignore the export meta and refetch every message")
 	exp.Flags().IntVar(&exConcurrency, "concurrency", 4, "how many channels to export at once")
-	return []*cobra.Command{list, show, exp}
+	return []*cobra.Command{list, show, a.guildSearchCommand(), exp}
 }
 
 type guildShowJSON struct {
