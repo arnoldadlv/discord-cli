@@ -299,3 +299,11 @@ func DMs() []map[string]any {
 		{"id": "6004", "type": 3, "name": nil, "recipients": []any{ana, maria}, "last_message_id": "5000030", "owner_id": "9001"},
 	}
 }
+
+// DMsWithCollision is DMs plus a group whose name normalises to "maria",
+// colliding with the DM with maria.
+func DMsWithCollision() []map[string]any {
+	ana := map[string]any{"id": "9001", "username": "ana", "global_name": "Ana", "discriminator": "0"}
+	maria := map[string]any{"id": "9004", "username": "maria", "global_name": "Maria", "discriminator": "0"}
+	return append(DMs(), map[string]any{"id": "6005", "type": 3, "name": "Maria!", "recipients": []any{ana, maria}, "last_message_id": "5000040", "owner_id": "9004"})
+}

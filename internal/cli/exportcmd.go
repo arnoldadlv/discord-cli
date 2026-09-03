@@ -9,7 +9,6 @@ import (
 
 	"github.com/arnoldadlv/discord-cli/internal/discord"
 	"github.com/arnoldadlv/discord-cli/internal/export"
-	"github.com/arnoldadlv/discord-cli/internal/resolve"
 	"github.com/arnoldadlv/discord-cli/internal/term"
 )
 
@@ -131,5 +130,33 @@ func (a *app) channelExport(cmd *cobra.Command, guildFlag, channelInput string, 
 	return a.printExportResult(g, ch, res)
 }
 
-// normalizedName is exposed for DM export naming in a later ticket.
-var _ = resolve.Normalize
+// dmTarget says where a DM's export goes: the dm directory beside the
+// guild directories, with the tool's own guild values.
+func (a *app) dmTarget(d discord.DMChannel) export.Target {
+	dir := filepath.Join(a.paths().ExportsDir(), export.DMDirName)
+	return export.Target{
+		Guild:   export.Guild{ID: export.DMGuildID, Name: export.DMGuildName},
+		Channel: export.Channel{ID: d.ID, Name: d.DisplayName(), Type: d.Type},
+		Dir:     dir,
+		MetaDir: dir,
+	}
+}
+
+func (a *app) dmExport(cmd *cobra.Command, input string, full bool) error {
+	ctx := cmd.Context()
+	d, err := a.resolveDM(ctx, input)
+	if err != nil {
+		return err
+	}
+	runner, err := a.exportRunner(full)
+	if err != nil {
+		return err
+	}
+	res, err := a.exportOne(ctx, runner, a.dmTarget(d), d.DisplayName())
+	if err != nil {
+		return a.apiError(err)
+	}
+	g := discord.Guild{ID: export.DMGuildID, Name: export.DMGuildName}
+	ch := discord.Channel{ID: d.ID, Name: d.DisplayName(), Type: d.Type}
+	return a.printExportResult(g, ch, res)
+}
