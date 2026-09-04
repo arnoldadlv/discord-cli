@@ -219,3 +219,4 @@ Exports use the DiscordChatExporter envelope (`guild`, `channel`, `dateRange`, `
 4. `--threads` on `channel list`, `channel read`, `channel export`, and `guild export` includes active and archived threads.
 5. Timestamps in JSON are RFC 3339 as Discord returned them.
 6. The old npm package `@poamslayer/discord-cli` is deprecated; its flat commands (`guilds`, `messages`, `search --local`) do not exist here.
+7. `message read` and `export search` say on stderr whether the answer came from an export on disk or from Discord, and how stale an export answer might be. `source` in their JSON (`export` or `discord`) is the machine-readable form of the same fact; `guild search`, `channel read`, and `dm read` need no such note because their name already says where they read from.

@@ -129,7 +129,23 @@ func (a *app) messageFromExport(loc *search.Location, id string, n int) error {
 		// Only native exports record the channel type as a number.
 		out.Channel.Type = intPtr(h.Channel.Type)
 	}
+	a.noticeExportSource(loc.File, h)
 	return a.writeMessageRead(out, ms, id)
+}
+
+// noticeExportSource prints where a message read from an export came from.
+// A native export's DateRange.Before is the newest message it actually
+// stores, so the note can say how far it covers. A legacy export's
+// DateRange.Before is the date range DiscordChatExporter was asked for,
+// not necessarily what it stored, so it is never quoted here; the same
+// wording covers a native export with no date range at all, rather than
+// rendering shortDate's "-" inside the sentence.
+func (a *app) noticeExportSource(file string, h *export.Header) {
+	if h.Dialect == export.Native && h.DateRange.Before != nil {
+		a.notice("Read from the export at %s, which covers messages up to %s. Newer messages are not in it.", a.shortPath(file), shortDate(h.DateRange.Before))
+		return
+	}
+	a.notice("Read from the export at %s. It may not hold newer messages.", a.shortPath(file))
 }
 
 // messageFromDiscord fetches the message and its neighbours from Discord,
@@ -196,6 +212,7 @@ func (a *app) messageFromDiscord(ctx context.Context, id, guildFlag, channelFlag
 			WithHint("Check the id and the channel; the account can only read messages in channels it can see.")
 	}
 	lo, hi := max(at-n, 0), min(at+n, len(page)-1)
+	a.notice("Fetched from Discord.")
 	return a.writeMessageRead(out, page[lo:hi+1], id)
 }
 
