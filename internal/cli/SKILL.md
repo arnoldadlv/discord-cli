@@ -86,30 +86,12 @@ Global flags: `--json`, `--format` (see below), `--width` (compact truncation, d
 
 ## Output formats
 
-Every command accepts `--format`: `human` (the default), `json` (the same as `--json`), `compact`, and `tsv`.
+Every command accepts `--format`: `human` (the default), `json` (the same as `--json`), `compact`, and `tsv`. Use `compact` when the answer is a distribution across many lines (counting, grouping, scanning). Use `tsv` for the list commands.
 
-Use `json` for anything that needs the whole message: it names every field, including attachments, embeds, and reactions.
-
-Use `compact` when the answer is a count, a group, or a scan through many lines rather than one message. It works on `channel read`, `dm read`, `export search`, `guild search`, and `message read`, printing one line per message in the same shape a grep result is, `path:line:content`:
-
-```
-guild-slug/channel-slug:message-id:timestamp:author: content
-```
-
-`guild-slug/channel-slug` is exactly the form `--guild` and a channel argument already accept, so `cut -d: -f1` hands back an address you can pass straight back to `channel read` or `message read`. Content is always one line: a newline becomes the two characters `\n`, a tab becomes `\t`, and it is cut off at `--width` characters (200 by default, 0 turns that off) with a trailing ellipsis. Attachments, embeds, and reactions never appear in compact; ask for `json` when a message's full detail matters.
-
-Reach for `compact` over `json` whenever the question is about counting, grouping, or scanning many messages rather than reading one: how many messages mention a term, which channel talks about a topic the most, who posts the most, which day had the most activity. The answer is a distribution across many lines, not the content of any one message, so pipe compact lines through `cut`, `sort`, `uniq -c`, and `grep` the way `grep -n` output is used, instead of parsing JSON just to throw most of it away:
+In `compact`, each line is `guild-slug/channel-slug:message-id:timestamp:author: content`, where content is one line with newlines escaped as `\n`, cut at `--width` (200 by default), and without attachments, embeds, or reactions.
 
 ```bash
-discord export search "access control" --guild my-guild --format=compact
-discord export search "access control" --guild my-guild --format=compact | cut -d: -f1 | sort | uniq -c | sort -rn
-```
-
-Use `tsv` for the list commands: `guild list`, `channel list`, `dm list`, `export list`, and `cache status`. It is the same columns the human table shows, tab-separated, with a header row `--no-header` removes:
-
-```bash
-discord guild list --format=tsv --no-header
-discord export list --format=tsv | cut -f1,3
+discord export search "access control" --guild my-guild --format=compact | cut -d: -f1 | sort | uniq -c
 ```
 
 ## Quick reference
