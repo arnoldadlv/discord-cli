@@ -129,6 +129,7 @@ func (a *app) messageFromExport(loc *search.Location, id string, n int) error {
 		// Only native exports record the channel type as a number.
 		out.Channel.Type = intPtr(h.Channel.Type)
 	}
+	a.notice("Read from the export at %s, which covers messages up to %s. Newer messages are not in it.", a.shortPath(loc.File), shortDate(h.DateRange.Before))
 	return a.writeMessageRead(out, ms, id)
 }
 
@@ -196,6 +197,7 @@ func (a *app) messageFromDiscord(ctx context.Context, id, guildFlag, channelFlag
 			WithHint("Check the id and the channel; the account can only read messages in channels it can see.")
 	}
 	lo, hi := max(at-n, 0), min(at+n, len(page)-1)
+	a.notice("Fetched from Discord.")
 	return a.writeMessageRead(out, page[lo:hi+1], id)
 }
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -23,6 +24,7 @@ type searchResultJSON struct {
 }
 
 type exportSearchJSON struct {
+	Source       string             `json:"source"` // always "export"; export search only ever reads exports on disk
 	TotalMatches int                `json:"total_matches"`
 	Shown        int                `json:"shown"`
 	Results      []searchResultJSON `json:"results"`
@@ -111,8 +113,9 @@ func (a *app) exportSearch(cmd *cobra.Command, query, guild string, all bool, au
 	if len(shown) > limit {
 		shown = shown[:limit]
 	}
+	a.notice("Searched %s on disk, the newest covering messages up to %s. Anything newer is not in them; 'discord guild search' asks Discord instead.", plural(len(items), "export"), shortDate(newestExportDate(items)))
 	if a.flags.JSON {
-		out := exportSearchJSON{TotalMatches: len(results), Shown: len(shown), Results: make([]searchResultJSON, 0, len(shown))}
+		out := exportSearchJSON{Source: "export", TotalMatches: len(results), Shown: len(shown), Results: make([]searchResultJSON, 0, len(shown))}
 		for _, r := range shown {
 			out.Results = append(out.Results, toSearchResultJSON(r))
 		}
@@ -142,6 +145,28 @@ func (a *app) exportSearch(cmd *cobra.Command, query, guild string, all bool, au
 		fmt.Fprintf(w, "\n%s\n", a.out.Dim(fmt.Sprintf("... and %d more; raise --limit to see them", rest)))
 	}
 	return nil
+}
+
+// newestExportDate is the newest message date any of the searched exports
+// covers, the same value the "TO" column of 'export list' shows. An export
+// whose messages have not changed since it was last read is not fresher,
+// so this reads the covered date, never the file's modification time.
+func newestExportDate(items []export.Item) *string {
+	var best *string
+	var bestTime time.Time
+	for _, it := range items {
+		if it.DateRange.Before == nil {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339Nano, *it.DateRange.Before)
+		if err != nil {
+			continue
+		}
+		if best == nil || t.After(bestTime) {
+			best, bestTime = it.DateRange.Before, t
+		}
+	}
+	return best
 }
 
 func (a *app) writeSearchResult(r search.Result) {
