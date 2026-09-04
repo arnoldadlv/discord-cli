@@ -86,7 +86,7 @@ Global flags: `--json`, `--format` (see below), `--width` (compact truncation, d
 
 ## Output formats
 
-Every command accepts `--format`: `human` (the default), `json`, `compact`, and `tsv`. Use `compact` when the answer is a distribution across many lines (counting, grouping, scanning). Use `tsv` for the list commands.
+Every command accepts `--format`: `human` (the default), `json` (the same as `--json`), `compact`, and `tsv`. Use `compact` when the answer is a distribution across many lines (counting, grouping, scanning). Use `tsv` for the list commands.
 
 In `compact`, each line is `guild-slug/channel-slug:message-id:timestamp:author: content`, where content is one line with newlines escaped as `\n`, cut at `--width` (200 by default), and without attachments, embeds, or reactions.
 
