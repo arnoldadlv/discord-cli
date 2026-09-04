@@ -153,10 +153,10 @@ func (a *app) exportSearch(cmd *cobra.Command, query, guild string, all bool, au
 // note says so without a date rather than rendering shortDate's "-".
 func (a *app) noticeExportSearchSource(items []export.Item) {
 	if date := newestExportDate(items); date != nil {
-		a.notice("Searched %s on disk, the newest covering messages up to %s. Anything newer is not in them; 'discord guild search' asks Discord instead.", plural(len(items), "export"), shortDate(date))
+		a.notice("Searched %s on disk, the newest covering messages up to %s. Anything newer is not on disk; 'discord guild search' asks Discord instead.", plural(len(items), "export"), shortDate(date))
 		return
 	}
-	a.notice("Searched %s on disk. Anything newer may not be in them; 'discord guild search' asks Discord instead.", plural(len(items), "export"))
+	a.notice("Searched %s on disk. Anything newer may not be on disk; 'discord guild search' asks Discord instead.", plural(len(items), "export"))
 }
 
 // newestExportDate is the newest message date any of the searched exports

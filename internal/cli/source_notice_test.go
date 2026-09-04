@@ -177,7 +177,7 @@ func TestExportSearchWithNoUsableDateDropsTheDateClause(t *testing.T) {
 	if res.ExitCode != 0 {
 		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
 	}
-	want := "Searched 1 export on disk. Anything newer may not be in them; 'discord guild search' asks Discord instead.\n"
+	want := "Searched 1 export on disk. Anything newer may not be on disk; 'discord guild search' asks Discord instead.\n"
 	if !strings.Contains(res.Stderr, want) {
 		t.Errorf("stderr:\ngot:  %q\nwant it to contain: %q", res.Stderr, want)
 	}
@@ -186,8 +186,29 @@ func TestExportSearchWithNoUsableDateDropsTheDateClause(t *testing.T) {
 	}
 }
 
+// TestExportSearchSingularExportWordingDoesNotUseAPronoun covers the one
+// export case for the notice that does carry a date: 'them' would not
+// agree with the singular count plural() renders ("1 export"), so the
+// wording says "on disk" instead of using a pronoun at all.
+func TestExportSearchSingularExportWordingDoesNotUseAPronoun(t *testing.T) {
+	r := channelRunner(t)
+	writeJSON(t, filepath.Join(r.Home.ExportsDir(), "cooey-coe", "general.json"),
+		clitest.NativeExport("1001", "Cooey COE", "2001", "🔮general", 0, fixtureMessages("2001", 1, 3)))
+	res := r.Run("export", "search", "policy", "--all")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	want := "Searched 1 export on disk, the newest covering messages up to 2026-08-01. Anything newer is not on disk; 'discord guild search' asks Discord instead.\n"
+	if !strings.Contains(res.Stderr, want) {
+		t.Errorf("stderr:\ngot:  %q\nwant it to contain: %q", res.Stderr, want)
+	}
+	if strings.Contains(res.Stderr, "them") {
+		t.Errorf("notice should not use a pronoun that disagrees with the singular count: %q", res.Stderr)
+	}
+}
+
 func TestExportSearchPrintsTheSourceNoteInEveryFormat(t *testing.T) {
-	want := "Searched 5 exports on disk, the newest covering messages up to 2026-08-01. Anything newer is not in them; 'discord guild search' asks Discord instead.\n"
+	want := "Searched 5 exports on disk, the newest covering messages up to 2026-08-01. Anything newer is not on disk; 'discord guild search' asks Discord instead.\n"
 	for _, format := range []string{"human", "json", "compact"} {
 		r := inventoryRunner(t)
 		args := []string{"export", "search", "policy", "--all", "--limit", "100"}
