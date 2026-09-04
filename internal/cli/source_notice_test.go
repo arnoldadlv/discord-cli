@@ -91,6 +91,101 @@ func TestMessageReadExportNoticeUsesTheNewestMessageNotTheFileModTime(t *testing
 	}
 }
 
+// TestMessageReadFromExportWithNoDateRangeDropsTheDateClause covers a
+// native export whose dateRange is missing entirely (never written, or
+// corrupted): shortDate would render "-", so the note must drop the date
+// clause rather than say "up to -".
+func TestMessageReadFromExportWithNoDateRangeDropsTheDateClause(t *testing.T) {
+	r := channelRunner(t)
+	path := filepath.Join(r.Home.ExportsDir(), "cooey-coe", "general.json")
+	env := map[string]any{
+		"guild":        map[string]any{"id": "1001", "name": "Cooey COE"},
+		"channel":      map[string]any{"id": "2001", "name": "🔮general", "type": 0},
+		"dateRange":    map[string]any{"after": nil, "before": nil},
+		"messages":     fixtureMessages("2001", 1, 5),
+		"messageCount": 5,
+	}
+	writeJSON(t, path, env)
+	res := r.Run("message", "read", clitest.MessageID(3), "--json")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	want := "Read from the export at ~/.local/share/discord-cli/exports/cooey-coe/general.json. It may not hold newer messages.\n"
+	if !strings.Contains(res.Stderr, want) {
+		t.Errorf("stderr:\ngot:  %q\nwant it to contain: %q", res.Stderr, want)
+	}
+	if strings.Contains(res.Stderr, "which covers messages up to") || strings.Contains(res.Stderr, "up to -") {
+		t.Errorf("date clause should be dropped, not rendered as a dash: %q", res.Stderr)
+	}
+}
+
+// TestMessageReadFromLegacyExportNeverQuotesItsRequestedFilterDate covers
+// a legacy DiscordChatExporter export whose dateRange.before is the date
+// range it was asked to export, not what it actually stored, and here is
+// later than the newest message on disk. Quoting it would assert
+// something the file does not support, so the note must drop the date
+// clause for every legacy export, not just ones with no dateRange at all.
+func TestMessageReadFromLegacyExportNeverQuotesItsRequestedFilterDate(t *testing.T) {
+	r := channelRunner(t)
+	legacy := clitest.LegacyExport("1001", "Cooey COE", "2020", "access-control", 5)
+	legacy["dateRange"] = map[string]any{"after": nil, "before": "2099-12-31T00:00:00.000-07:00"}
+	writeJSON(t, filepath.Join(r.Home.ChatExporterDir(), "cooey-coe", "Cooey COE - access-control [2020].json"), legacy)
+	res := r.Run("message", "read", "4000003", "--json")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	if strings.Contains(res.Stderr, "2099") {
+		t.Errorf("notice quoted the legacy export's requested filter date: %q", res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "It may not hold newer messages.") {
+		t.Errorf("legacy export should get the no-date wording: %q", res.Stderr)
+	}
+}
+
+// TestExportSearchExcludesLegacyDatesFromTheNewestCalculation covers a
+// legacy export whose dateRange.before is later than any native export's
+// newest message: it must never win the "newest covering" comparison,
+// since it is a requested filter date, not a message date.
+func TestExportSearchExcludesLegacyDatesFromTheNewestCalculation(t *testing.T) {
+	r := channelRunner(t)
+	writeJSON(t, filepath.Join(r.Home.ExportsDir(), "cooey-coe", "general.json"),
+		clitest.NativeExport("1001", "Cooey COE", "2001", "🔮general", 0, fixtureMessages("2001", 1, 3)))
+	legacy := clitest.LegacyExport("1001", "Cooey COE", "2020", "access-control", 5)
+	legacy["dateRange"] = map[string]any{"after": nil, "before": "2099-12-31T00:00:00.000-07:00"}
+	writeJSON(t, filepath.Join(r.Home.ChatExporterDir(), "cooey-coe", "Cooey COE - access-control [2020].json"), legacy)
+
+	res := r.Run("export", "search", "policy", "--all", "--limit", "100")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	if strings.Contains(res.Stderr, "2099") {
+		t.Errorf("the legacy export's requested filter date leaked into the notice: %q", res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "the newest covering messages up to 2026-08-01") {
+		t.Errorf("the native export's date should still be reported: %q", res.Stderr)
+	}
+}
+
+// TestExportSearchWithNoUsableDateDropsTheDateClause covers searching
+// only legacy exports, none of which can supply a message date: the note
+// must drop the date clause rather than render shortDate's "-".
+func TestExportSearchWithNoUsableDateDropsTheDateClause(t *testing.T) {
+	r := channelRunner(t)
+	writeJSON(t, filepath.Join(r.Home.ChatExporterDir(), "cooey-coe", "Cooey COE - access-control [2020].json"),
+		clitest.LegacyExport("1001", "Cooey COE", "2020", "access-control", 5))
+	res := r.Run("export", "search", "policy", "--all")
+	if res.ExitCode != 0 {
+		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
+	}
+	want := "Searched 1 export on disk. Anything newer may not be in them; 'discord guild search' asks Discord instead.\n"
+	if !strings.Contains(res.Stderr, want) {
+		t.Errorf("stderr:\ngot:  %q\nwant it to contain: %q", res.Stderr, want)
+	}
+	if strings.Contains(res.Stderr, "the newest covering") || strings.Contains(res.Stderr, "up to -") {
+		t.Errorf("date clause should be dropped, not rendered as a dash: %q", res.Stderr)
+	}
+}
+
 func TestExportSearchPrintsTheSourceNoteInEveryFormat(t *testing.T) {
 	want := "Searched 5 exports on disk, the newest covering messages up to 2026-08-01. Anything newer is not in them; 'discord guild search' asks Discord instead.\n"
 	for _, format := range []string{"human", "json", "compact"} {
