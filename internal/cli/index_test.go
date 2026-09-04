@@ -39,8 +39,11 @@ func TestExportSearchIndexMatchesScanExactly(t *testing.T) {
 		if res.ExitCode != 0 {
 			t.Fatalf("%v: exit %d: %s", q, res.ExitCode, res.Stderr)
 		}
-		if res.Stderr != "" {
-			t.Errorf("%v: no notice expected when the index is used: %q", q, res.Stderr)
+		if strings.Contains(res.Stderr, "scan") {
+			t.Errorf("%v: no fallback notice expected when the index is used: %q", q, res.Stderr)
+		}
+		if !strings.Contains(res.Stderr, "Searched") {
+			t.Errorf("%v: missing the export search source note: %q", q, res.Stderr)
 		}
 		if res.Stdout != scanned[i] {
 			t.Errorf("%v: index differs from scan\nscan:\n%s\nindex:\n%s", q, scanned[i], res.Stdout)
@@ -69,7 +72,7 @@ func TestExportUpdatesIndexAndStaleFileFallsBack(t *testing.T) {
 		t.Errorf("after export: %+v", st.Index)
 	}
 	res := r.Run("export", "search", "policy", "--all")
-	if res.ExitCode != 0 || res.Stderr != "" {
+	if res.ExitCode != 0 || strings.Contains(res.Stderr, "scan") {
 		t.Errorf("index should serve: %d %q", res.ExitCode, res.Stderr)
 	}
 
@@ -99,7 +102,7 @@ func TestExportUpdatesIndexAndStaleFileFallsBack(t *testing.T) {
 		t.Fatal(res.Stderr)
 	}
 	res = r.Run("export", "search", "policy", "--all")
-	if res.Stderr != "" {
+	if strings.Contains(res.Stderr, "scan") {
 		t.Errorf("after rebuild: %q", res.Stderr)
 	}
 }
@@ -190,7 +193,7 @@ func TestIndexedSearchIsFast(t *testing.T) {
 	start := time.Now()
 	res := r.Run("export", "search", "poam", "--all", "--author", "kyle", "--json")
 	elapsed := time.Since(start)
-	if res.ExitCode != 0 || res.Stderr != "" {
+	if res.ExitCode != 0 || strings.Contains(res.Stderr, "scan") {
 		t.Fatalf("exit %d: %s", res.ExitCode, res.Stderr)
 	}
 	var j searchOut

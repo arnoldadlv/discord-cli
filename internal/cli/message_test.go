@@ -128,8 +128,9 @@ func TestMessageReadResolvesThroughTheIndexWithoutNetwork(t *testing.T) {
 	if len(r.Fake.Requests()) != 0 {
 		t.Errorf("message read through the index must not talk to Discord: %+v", r.Fake.Requests())
 	}
-	if res.Stderr != "" {
-		t.Errorf("stderr: %q", res.Stderr)
+	wantNotice := "Read from the export at ~/.local/share/discord-cli/exports/cooey-coe/general.json, which covers messages up to 2026-08-01. Newer messages are not in it.\n"
+	if res.Stderr != wantNotice {
+		t.Errorf("stderr:\ngot:  %q\nwant: %q", res.Stderr, wantNotice)
 	}
 
 	// Human output marks the message with a leading > on its timestamp line,

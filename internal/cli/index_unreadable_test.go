@@ -52,7 +52,7 @@ func TestCacheRebuildSkipsTruncatedExport(t *testing.T) {
 	}
 
 	idx := r.Run("export", "search", "policy", "--all", "--limit", "100", "--json")
-	if idx.ExitCode != 0 || idx.Stderr != "" {
+	if idx.ExitCode != 0 || strings.Contains(idx.Stderr, "scan") {
 		t.Fatalf("index should serve after a rebuild with a bad file: %d %q", idx.ExitCode, idx.Stderr)
 	}
 	if idx.Stdout != scan.Stdout {
